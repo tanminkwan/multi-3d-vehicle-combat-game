@@ -139,20 +139,24 @@ export class UIManager {
             const playerDiv = document.createElement('div');
             playerDiv.className = 'player-item';
             
-            // 플레이어 이름 찾기
+            // 플레이어 이름 및 NPC 여부 찾기
             let playerName = 'Unknown';
             let playerScore = 0;
+            let isNpc = false;
+            let difficulty = null;
             
             // 내 플레이어인 경우
             if (this.myPlayer && vehicleData.playerId === this.myPlayer.id) {
                 playerName = this.myPlayer.name;
                 playerScore = this.myPlayer.score || 0;
             } else {
-                // 다른 플레이어인 경우 - 최신 gameState에서 찾기
+                // 다른 플레이어(유저 또는 NPC)인 경우 - 최신 gameState에서 찾기
                 const player = playerMap.get(vehicleData.playerId);
                 if (player && player.name) {
                     playerName = player.name;
                     playerScore = player.score || 0;
+                    isNpc = Boolean(player.isNpc);
+                    difficulty = player.difficulty || null;
                 }
             }
             
@@ -160,11 +164,19 @@ export class UIManager {
             if (playerName === 'Unknown') {
                 continue;
             }
+
+            const isMe = this.myPlayer && vehicleData.playerId === this.myPlayer.id;
+            const prefix = isMe ? '(나) ' : (isNpc ? '🤖 ' : '');
+            const diffBadge = isNpc && difficulty
+                ? ` <span class="npc-badge" style="font-size: 10px; opacity: 0.85; padding: 1px 4px; border-radius: 3px; background: rgba(255,255,255,0.18);">${difficulty}</span>`
+                : '';
             
+            playerDiv.dataset.isNpc = isNpc ? 'true' : 'false';
+            playerDiv.dataset.playerName = playerName;
             playerDiv.innerHTML = `
                 <div style="display: flex; align-items: center;">
                     <div class="player-color" style="background-color: ${vehicleData.color}"></div>
-                    <span>${this.myPlayer && vehicleData.playerId === this.myPlayer.id ? '(나) ' : ''}${playerName}</span>
+                    <span>${prefix}${playerName}${diffBadge}</span>
                 </div>
                 <div>
                     <span>❤️ ${vehicleData.health} 🏆 ${playerScore}</span>

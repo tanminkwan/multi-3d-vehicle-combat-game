@@ -510,20 +510,25 @@ export class GameClient {
         // 태양광
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
         directionalLight.position.set(100, 100, 50);
-        directionalLight.castShadow = true;
         
-        const shadowMapSize = this.config?.client?.lighting?.shadowMapSize || 2048;
-        const shadowCameraFar = this.config?.client?.lighting?.shadowCameraFar || 500;
-        const shadowCameraBounds = this.config?.client?.lighting?.shadowCameraBounds || 100;
+        const perfConfig = this.config?.client?.performance || {};
+        const shadowsEnabled = perfConfig.enableShadows !== false && !perfConfig.lowPerformanceMode;
+        directionalLight.castShadow = shadowsEnabled;
         
-        directionalLight.shadow.mapSize.width = shadowMapSize;
-        directionalLight.shadow.mapSize.height = shadowMapSize;
-        directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = shadowCameraFar;
-        directionalLight.shadow.camera.left = -shadowCameraBounds;
-        directionalLight.shadow.camera.right = shadowCameraBounds;
-        directionalLight.shadow.camera.top = shadowCameraBounds;
-        directionalLight.shadow.camera.bottom = -shadowCameraBounds;
+        if (shadowsEnabled) {
+            const shadowMapSize = this.config?.client?.lighting?.shadowMapSize || 2048;
+            const shadowCameraFar = this.config?.client?.lighting?.shadowCameraFar || 500;
+            const shadowCameraBounds = this.config?.client?.lighting?.shadowCameraBounds || 100;
+            
+            directionalLight.shadow.mapSize.width = shadowMapSize;
+            directionalLight.shadow.mapSize.height = shadowMapSize;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = shadowCameraFar;
+            directionalLight.shadow.camera.left = -shadowCameraBounds;
+            directionalLight.shadow.camera.right = shadowCameraBounds;
+            directionalLight.shadow.camera.top = shadowCameraBounds;
+            directionalLight.shadow.camera.bottom = -shadowCameraBounds;
+        }
         this.scene.add(directionalLight);
 
         // 환경광
@@ -607,10 +612,7 @@ export class GameClient {
     animate() {
         requestAnimationFrame(() => this.animate());
         
-        const deltaTime = this.clock.getDelta();
-        
-        // 프레임 제한 (60fps 이상일 때 성능 최적화)
-        if (deltaTime < 0.016) return; // 60fps 제한
+        const deltaTime = Math.min(this.clock.getDelta(), 0.1);
         
         // 입력 업데이트 - InputManager 사용
         this.inputManager.updateInputs();
@@ -903,6 +905,18 @@ export class GameClient {
         // 최신 게임 상태 저장 (플레이어 목록 업데이트에서 사용)
         this.latestGameState = gameState;
         
+        // 퇴장한 플레이어/제거된 NPC의 비행체 정리
+        if (gameState.players) {
+            const activePlayerIds = new Set(gameState.players.map(p => p.id));
+            for (const [vehicleId, vehicle] of this.vehicles) {
+                const ownerId = vehicle.userData.vehicleData?.playerId;
+                if (ownerId && !activePlayerIds.has(ownerId)) {
+                    this.scene.remove(vehicle);
+                    this.vehicles.delete(vehicleId);
+                }
+            }
+        }
+
         // 비행체 업데이트
         if (gameState.vehicles && gameState.vehicles.length > 0) {
         gameState.vehicles.forEach(vehicleData => {
@@ -1047,25 +1061,22 @@ export class GameClient {
         if (gameState.effects && gameState.effects.effects) {
             gameState.effects.effects.forEach(effectData => {
                 if (effectData.type === 'explosion') {
-                    const explosion = this.explosions.get(effectData.id);
-                    if (!explosion) {
-                        // 새로운 폭발 생성 - EffectManager로 위임
-                        if (this.effectManager) {
+                    if (this.effectManager) {
+                        if (!this.effectManager.hasSeenExplosion(effectData.id)) {
                             this.effectManager.createExplosion(effectData);
                         }
                     } else {
-                        // 기존 폭발 업데이트
-                        const intensity = effectData.intensity || 1;
-                        const scale = intensity * (effectData.radius || 10) * 0.1;
-                        explosion.scale.setScalar(scale);
-                        
-                        // 투명도 조절
-                        const opacity = intensity;
-                        explosion.children.forEach(child => {
-                            if (child.material) {
-                                child.material.opacity = opacity;
-                            }
-                        });
+                        const explosion = this.explosions.get(effectData.id);
+                        if (explosion) {
+                            const intensity = effectData.intensity || 1;
+                            const scale = intensity * (effectData.radius || 10) * 0.1;
+                            explosion.scale.setScalar(scale);
+                            explosion.children.forEach(child => {
+                                if (child.material) {
+                                    child.material.opacity = intensity;
+                                }
+                            });
+                        }
                     }
                 }
             });
@@ -1131,9 +1142,13 @@ export class GameClient {
         // UIManager에 게임 상태 업데이트 알림
         this.uiManager.updateGameState(gameState);
         
-        // UI 업데이트 (UIManager로 위임)
-        this.updatePlayerInfo();
-        this.updatePlayerList();
+        // UI 업데이트 (UIManager로 위임 - 200ms 간격으로 쓰로틀링하여 DOM 재렌더링 부하 감소)
+        const now = Date.now();
+        if (!this.lastUIUpdate || now - this.lastUIUpdate >= 200) {
+            this.updatePlayerInfo();
+            this.updatePlayerList();
+            this.lastUIUpdate = now;
+        }
     }
 
     /**

@@ -12,6 +12,7 @@ export class EffectManager {
         
         // 효과 컬렉션
         this.explosions = new Map();
+        this.seenExplosionIds = new Set();
         this.muzzleFlashes = new Map();
         this.debris = new Map();
         
@@ -21,17 +22,37 @@ export class EffectManager {
     }
     
     /**
+     * 이미 생성된 폭발 ID인지 확인
+     */
+    hasSeenExplosion(explosionId) {
+        return Boolean(explosionId && this.seenExplosionIds.has(explosionId));
+    }
+
+    /**
      * 폭발 생성
      */
     createExplosion(explosionData) {
+        if (explosionData.id) {
+            if (this.seenExplosionIds.has(explosionData.id)) {
+                return this.explosions.get(explosionData.id) || null;
+            }
+            this.seenExplosionIds.add(explosionData.id);
+            if (this.seenExplosionIds.size > 500) {
+                const oldest = this.seenExplosionIds.values().next().value;
+                this.seenExplosionIds.delete(oldest);
+            }
+        }
+
         // config에서 폭발 설정 가져오기 (폴백은 Constants에서)
         const explosionConfig = this.config?.effects?.explosion || {};
+        const lowPerf = Boolean(this.config?.client?.performance?.lowPerformanceMode);
         
         const explosionGroup = new THREE.Group();
         
         // 메인 폭발 (더 크게)
         const explosionRadius = (explosionConfig.radius || EFFECT_DEFAULTS.EXPLOSION.radius) * (explosionData.radius || 1);
-        const explosionGeometry = new THREE.SphereGeometry(explosionRadius, 32, 32); // 더 세밀하게
+        const sphereSegments = lowPerf ? 10 : 24;
+        const explosionGeometry = new THREE.SphereGeometry(explosionRadius, sphereSegments, sphereSegments);
         const explosionMaterial = new THREE.MeshBasicMaterial({
             color: explosionConfig.color || EFFECT_DEFAULTS.EXPLOSION.color,
             transparent: true,
@@ -41,7 +62,7 @@ export class EffectManager {
         explosionGroup.add(explosion);
         
         // 외부 글로우 효과 추가
-        const glowGeometry = new THREE.SphereGeometry(explosionRadius * 1.5, 16, 16);
+        const glowGeometry = new THREE.SphereGeometry(explosionRadius * 1.5, lowPerf ? 8 : 16, lowPerf ? 8 : 16);
         const glowMaterial = new THREE.MeshBasicMaterial({
             color: explosionConfig.glowColor || EFFECT_DEFAULTS.EXPLOSION.glowColor,
             transparent: true,
@@ -50,8 +71,9 @@ export class EffectManager {
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
         explosionGroup.add(glow);
         
-        // 파티클 효과 (더 많이, 더 넓게)
-        const particleCount = (explosionConfig.particleCount || EFFECT_DEFAULTS.EXPLOSION.particleCount) * 2; // 2배 증가
+        // 파티클 효과
+        const rawParticleCount = (explosionConfig.particleCount || EFFECT_DEFAULTS.EXPLOSION.particleCount) * 2;
+        const particleCount = lowPerf ? Math.min(12, rawParticleCount) : rawParticleCount;
         const particleColors = explosionConfig.particleColors || EFFECT_DEFAULTS.EXPLOSION.particleColors;
         const spreadRange = explosionRadius * 3;
         

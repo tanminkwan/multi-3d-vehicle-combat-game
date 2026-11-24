@@ -18,9 +18,10 @@ export class PlayerManager {
      * @param {string} playerId 
      * @param {string} playerName 
      * @param {string} vehicleType 
+     * @param {{ isNpc?: boolean, difficulty?: string | null }} [options]
      * @returns {{success: boolean, reason?: string, player?: object}}
      */
-    addPlayer(playerId, playerName, vehicleType = 'fighter') {
+    addPlayer(playerId, playerName, vehicleType = 'fighter', options = {}) {
         if (this.players.size >= this.gameConfig.maxPlayers) {
             return { success: false, reason: 'Game is full' };
         }
@@ -30,6 +31,7 @@ export class PlayerManager {
             return { success: false, reason: 'No available colors' };
         }
 
+        const isNpc = Boolean(options.isNpc);
         const player = {
             id: playerId,
             name: playerName,
@@ -38,6 +40,8 @@ export class PlayerManager {
             deaths: 0,
             color: color,
             vehicleType: vehicleType,
+            isNpc: isNpc,
+            difficulty: isNpc ? (options.difficulty || 'normal') : null,
             joinedAt: Date.now(),
             awarenessTargetId: null,
             lockOnTargetId: null,
@@ -96,6 +100,30 @@ export class PlayerManager {
     
     getAllPlayers() {
         return Array.from(this.players.values());
+    }
+
+    getHumanPlayers() {
+        return this.getAllPlayers().filter(p => !p.isNpc);
+    }
+
+    getNpcPlayers() {
+        return this.getAllPlayers().filter(p => p.isNpc);
+    }
+
+    getHumanCount() {
+        let count = 0;
+        for (const player of this.players.values()) {
+            if (!player.isNpc) count++;
+        }
+        return count;
+    }
+
+    getNpcCount() {
+        let count = 0;
+        for (const player of this.players.values()) {
+            if (player.isNpc) count++;
+        }
+        return count;
     }
 
     /**

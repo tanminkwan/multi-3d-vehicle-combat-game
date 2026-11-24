@@ -353,3 +353,67 @@ targeting:
     - [100, 12]                      # 100m 이내, 12도
     - [150, 18]                      # 150m 이내, 18도
     - [200, 25]                      # 200m 이내, 25도
+
+# NPC 플레이어 설정
+npc:
+  enabled: true                      # NPC 시스템 활성화 여부
+  mode: "fill"                       # "fill" (꽉채우는 모드, 기본) | "fixed" (지정 개수 모드)
+  fixedCount: 3                      # mode가 "fixed"일 때 유지할 NPC 수
+  keepAliveWhenEmpty: false          # 접속 유저가 0명일 때 NPC 동작 안 함
+  prioritizeHumans: true             # fixed 모드에서 정원 초과 시 유저 입장 우선 여부
+  defaultDifficulty: "easy"        # "easy" | "normal" | "hard" | "mixed"
+  difficultyWeights:                 # defaultDifficulty가 "mixed"일 때 가중치
+    easy: 30
+    normal: 50
+    hard: 20
+  vehicleTypes: ["fighter", "heavy"] # fighter / heavy 랜덤 혼합
+  namePrefix: "NPC"                  # NPC1, NPC2, NPC3 ... 순번 부여
+  difficulties:
+    easy:
+      reactionTimeMs: 650
+      decisionIntervalMs: 400
+      aimErrorDeg: 12.0
+      leadTargetFactor: 0.0
+      turnRateScale: 0.55
+      throttleScale: 0.6
+      detectionRange: 180
+      fireRange: 150
+      fireAngleDeg: 18
+      fireBurstMs: 450
+      fireRestMs: 900
+      missileUseChance: 0.2
+      missileReactionMs: 1000
+      evasionChance: 0.25
+      evasionHealthRatio: 0.3
+    normal:
+      reactionTimeMs: 300
+      decisionIntervalMs: 200
+      aimErrorDeg: 5.0
+      leadTargetFactor: 0.45
+      turnRateScale: 0.8
+      throttleScale: 0.8
+      detectionRange: 260
+      fireRange: 220
+      fireAngleDeg: 12
+      fireBurstMs: 800
+      fireRestMs: 450
+      missileUseChance: 0.6
+      missileReactionMs: 450
+      evasionChance: 0.6
+      evasionHealthRatio: 0.45
+    hard:
+      reactionTimeMs: 100
+      decisionIntervalMs: 80
+      aimErrorDeg: 1.5
+      leadTargetFactor: 0.85
+      turnRateScale: 1.0
+      throttleScale: 1.0
+      detectionRange: 360
+      fireRange: 280
+      fireAngleDeg: 8
+      fireBurstMs: 1200
+      fireRestMs: 150
+      missileUseChance: 0.95
+      missileReactionMs: 150
+      evasionChance: 0.9
+      evasionHealthRatio: 0.6

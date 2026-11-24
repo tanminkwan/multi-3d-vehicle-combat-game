@@ -19,7 +19,8 @@ services:
       interval: 30s
       timeout: 30s
       retries: 3
-    restart: unless-stopped
+#    restart: unless-stopped
+    restart: "no"
     networks:
       - vehicle-game-network
 
@@ -53,7 +54,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    restart: unless-stopped
+#    restart: unless-stopped
+    restart: "no"
     networks:
       - vehicle-game-network
 
@@ -80,7 +82,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    restart: unless-stopped
+#    restart: unless-stopped
+    restart: "no"
     networks:
       - vehicle-game-network
 
@@ -103,7 +106,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    restart: unless-stopped
+#    restart: unless-stopped
+    restart: "no"
     networks:
       - vehicle-game-network
 

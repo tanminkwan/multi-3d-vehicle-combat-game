@@ -11,12 +11,13 @@ import { VehicleFactory } from './VehicleFactory.js';
 import { BillboardManager } from './BillboardManager.js';
 import { TargetingManager } from './TargetingManager.js';
 import { GiftBoxManager } from './GiftBoxManager.js';
+import { NpcManager } from './NpcManager.js';
 
 /**
  * 게임의 모든 시스템을 총괄하고 오케스트레이션하는 최상위 클래스
  */
 export default class GameManager {
-    constructor(config, eventEmitter) {
+    constructor(config, eventEmitter, options = {}) {
         this.config = config;
         this.eventEmitter = eventEmitter;
         
@@ -33,16 +34,43 @@ export default class GameManager {
         this.giftBoxManager = new GiftBoxManager(config);
         this.targetingManager = new TargetingManager(config, (x, z) => this.terrainManager.getTerrainHeight(x, z));
         this.performanceMonitor = new PerformanceMonitor(config);
+        this.npcManager = new NpcManager(config, this.createNpcWorldPort(), options.npcDeps);
+
+        // 리스폰 타이머 관리 (플레이어/NPC 제거 시 유령 리스폰 방지)
+        this.respawnTimers = new Map();
 
         // 게임 루프
         this.lastUpdateTime = Date.now();
         this.tickRate = config.server.tickRate;
         this.tickInterval = 1000 / this.tickRate;
+        this.gameLoopTimer = null;
 
         // 이벤트 리스너 설정
         this.setupEventListeners();
         
-        this.startGameLoop();
+        if (options.autoStartLoop !== false) {
+            this.startGameLoop();
+        }
+    }
+
+    /**
+     * NpcManager에 주입할 최소화된 월드 포트 어댑터 생성 (ISP / DIP)
+     */
+    createNpcWorldPort() {
+        return {
+            getTotalPlayerCount: () => this.playerManager.getAllPlayers().length,
+            getHumanCount: () => this.playerManager.getHumanCount(),
+            getNpcCount: () => this.playerManager.getNpcCount(),
+            getPlayer: (playerId) => this.playerManager.getPlayer(playerId),
+            getPlayerVehicle: (playerId) => this.vehicleManager.getPlayerVehicle(playerId),
+            getAllVehicles: () => this.vehicleManager.getAllVehicles(),
+            getBillboards: () => this.billboardManager.getAllBillboards(),
+            getTerrainManager: () => this.terrainManager,
+            addNpcPlayer: (npcId, name, vehicleType, difficulty) => this.addNpcPlayer(npcId, name, vehicleType, difficulty),
+            removeNpcPlayer: (npcId) => this.removeNpcPlayer(npcId),
+            handleNpcInput: (npcId, inputs) => this.handlePlayerInput(npcId, inputs),
+            syncGameState: () => this.syncGameState()
+        };
     }
 
     /**
@@ -57,10 +85,17 @@ export default class GameManager {
     }
 
     /**
-     * 플레이어 추가 오케스트레이션
+     * 플레이어(유저) 추가 오케스트레이션
      */
-    addPlayer(playerId, playerName, vehicleType = 'fighter') {
-        const playerResult = this.playerManager.addPlayer(playerId, playerName, vehicleType);
+    addPlayer(playerId, playerName, vehicleType = 'fighter', options = {}) {
+        const isNpc = Boolean(options.isNpc);
+
+        // 실제 유저 입장 시 정원이 가득 찼다면 NPC 슬롯 확보
+        if (!isNpc) {
+            this.npcManager.makeRoomForHuman();
+        }
+
+        const playerResult = this.playerManager.addPlayer(playerId, playerName, vehicleType, options);
         if (!playerResult.success) {
             return { success: false, reason: playerResult.reason };
         }
@@ -81,8 +116,11 @@ export default class GameManager {
             reloadTime: (vehicleConfig.missileReloadTime || 25) * 1000
         });
 
-        this.gameStateManager.updatePlayerCount(this.playerManager.getAllPlayers().length);
-        this.syncGameState();
+        if (!isNpc) {
+            this.gameStateManager.updatePlayerCount(this.playerManager.getHumanCount());
+            this.npcManager.reconcile();
+            this.syncGameState();
+        }
 
         return { 
             success: true, 
@@ -93,15 +131,42 @@ export default class GameManager {
     }
 
     /**
+     * NPC 플레이어 추가 (NpcManager 전용)
+     */
+    addNpcPlayer(npcId, npcName, vehicleType = 'fighter', difficulty = 'normal') {
+        return this.addPlayer(npcId, npcName, vehicleType, { isNpc: true, difficulty });
+    }
+
+    /**
+     * NPC 플레이어 제거 (NpcManager 전용)
+     */
+    removeNpcPlayer(npcId) {
+        return this.removePlayer(npcId, { fromNpcManager: true });
+    }
+
+    /**
      * 플레이어 제거 오케스트레이션
      */
-    removePlayer(playerId) {
+    removePlayer(playerId, options = {}) {
+        // 진행 중인 리스폰 타이머 취소 (유령 리스폰 방지)
+        const pendingTimer = this.respawnTimers.get(playerId);
+        if (pendingTimer) {
+            clearTimeout(pendingTimer);
+            this.respawnTimers.delete(playerId);
+        }
+
+        const existingPlayer = this.playerManager.getPlayer(playerId);
+        const wasNpc = Boolean(existingPlayer?.isNpc);
+
         this.vehicleManager.removeVehicleForPlayer(playerId);
         this.weaponSystem.removePlayerWeapons(playerId);
         this.playerManager.removePlayer(playerId);
 
-        this.gameStateManager.updatePlayerCount(this.playerManager.getAllPlayers().length);
-        this.syncGameState();
+        if (!wasNpc && !options.fromNpcManager) {
+            this.npcManager.reconcile();
+            this.gameStateManager.updatePlayerCount(this.playerManager.getHumanCount());
+            this.syncGameState();
+        }
         return true;
     }
 
@@ -141,18 +206,37 @@ export default class GameManager {
      * 게임 루프 시작
      */
     startGameLoop() {
-        setInterval(() => this.update(), this.tickInterval);
+        if (this.gameLoopTimer) return;
+        this.gameLoopTimer = setInterval(() => this.update(), this.tickInterval);
+    }
+
+    /**
+     * 게임 루프 및 대기 타이머 정지
+     */
+    stopGameLoop() {
+        if (this.gameLoopTimer) {
+            clearInterval(this.gameLoopTimer);
+            this.gameLoopTimer = null;
+        }
+        if (this.performanceMonitor?.stopMonitoring) {
+            this.performanceMonitor.stopMonitoring();
+        }
+        for (const timer of this.respawnTimers.values()) {
+            clearTimeout(timer);
+        }
+        this.respawnTimers.clear();
     }
 
     /**
      * 게임 업데이트
      */
-    update() {
-        const now = Date.now();
-        const deltaTime = (now - this.lastUpdateTime) / 1000;
+    update(fixedDeltaTime = null, nowOverride = null) {
+        const now = nowOverride ?? Date.now();
+        const deltaTime = fixedDeltaTime !== null ? fixedDeltaTime : (now - this.lastUpdateTime) / 1000;
         this.lastUpdateTime = now;
 
         if (this.gameStateManager.getGameState() === 'playing') {
+            this.npcManager.update(deltaTime, now);
             this.vehicleManager.update(deltaTime);
             this.updatePlayerTargetsAndLockOn(deltaTime);
             this.weaponSystem.updateProjectiles(deltaTime, this.vehicleManager.getAllVehicles());
@@ -173,6 +257,14 @@ export default class GameManager {
         this.syncGameState();
     }
 
+    getNpcStatus() {
+        return this.npcManager.getStatus();
+    }
+
+    updateNpcConfig(patch) {
+        return this.npcManager.updateConfig(patch);
+    }
+
     updatePlayerTargetsAndLockOn(deltaTime) {
         for (const player of this.playerManager.getAllPlayers()) {
             const playerVehicle = this.vehicleManager.getPlayerVehicle(player.id);
@@ -185,6 +277,10 @@ export default class GameManager {
     handleVehicleHit(collision) {
         const vehicle = this.vehicleManager.getVehicle(collision.targetId);
         if (!vehicle || !vehicle.active) return;
+
+        // NPC 피격 시 회피 반응 예약
+        this.npcManager.notifyNpcHit(vehicle.playerId, collision.ownerId);
+
         if (vehicle.takeDamage(collision.damage)) {
             this.handleVehicleDestroyed(vehicle, collision);
         } else {
@@ -275,7 +371,19 @@ export default class GameManager {
         const { explosionRadiusLarge, explosionDurationLarge, explosionIntensityLarge } = this.config.collision;
         this.effectSystem.createExplosion(vehicle.position, explosionRadiusLarge, explosionDurationLarge, explosionIntensityLarge);
         this.playerManager.updatePlayerStats(vehicle.playerId, collision.ownerId);
-        setTimeout(() => this.vehicleManager.respawnVehicle(vehicle), this.config.game.respawnTime || 5000);
+
+        const existingTimer = this.respawnTimers.get(vehicle.playerId);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+        }
+        const respawnTimer = setTimeout(() => {
+            this.respawnTimers.delete(vehicle.playerId);
+            if (this.playerManager.getPlayer(vehicle.playerId) && this.vehicleManager.getVehicle(vehicle.id)) {
+                this.vehicleManager.respawnVehicle(vehicle);
+            }
+        }, this.config.game.respawnTime || 5000);
+        this.respawnTimers.set(vehicle.playerId, respawnTimer);
+
         this.syncGameState();
     }
 

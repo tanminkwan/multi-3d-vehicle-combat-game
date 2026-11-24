@@ -12,12 +12,19 @@
     "install:game": "cd services/game-service && npm install",
     "install:user": "cd services/user-service && npm install",
     "install:all": "npm run install:game && npm run install:user",
+    "test:unit": "cd services/game-service && npm test",
+    "test:e2e": "npx playwright test",
     "clean": "rmdir /s services\\game-service\\node_modules services\\user-service\\node_modules node_modules 2>nul || echo Clean completed"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "concurrently": "^8.2.0"
   },
-  "keywords": ["multiplayer", "game", "microservices"],
+  "keywords": [
+    "multiplayer",
+    "game",
+    "microservices"
+  ],
   "author": "Game Developer",
   "license": "MIT"
 }

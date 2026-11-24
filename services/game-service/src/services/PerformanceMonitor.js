@@ -34,10 +34,24 @@ export class PerformanceMonitor {
      * 모니터링 시작
      */
     startMonitoring() {
-        setInterval(() => {
+        if (this.monitoringTimer) return;
+        this.monitoringTimer = setInterval(() => {
             this.collectMetrics();
             this.analyzePerformance();
         }, this.monitoringInterval);
+        if (typeof this.monitoringTimer.unref === 'function') {
+            this.monitoringTimer.unref();
+        }
+    }
+
+    /**
+     * 모니터링 중지
+     */
+    stopMonitoring() {
+        if (this.monitoringTimer) {
+            clearInterval(this.monitoringTimer);
+            this.monitoringTimer = null;
+        }
     }
 
     /**
