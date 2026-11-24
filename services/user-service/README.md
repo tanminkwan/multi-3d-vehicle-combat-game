@@ -61,15 +61,15 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=user_service
 DB_USER=app_user
-DB_PASS="app123!@#"
+DB_PASS="<YOUR_DB_PASSWORD>"
 
 # JWT 설정
 JWT_SECRET="your-super-secret-jwt-key-change-in-production"
 JWT_EXPIRY=24h
 
 # 프록시 설정 (필요한 경우)
-HTTP_PROXY=http://70.10.15.10:8080
-HTTPS_PROXY=http://70.10.15.10:8080
+HTTP_PROXY=http://<PROXY_HOST>:<PROXY_PORT>
+HTTPS_PROXY=http://<PROXY_HOST>:<PROXY_PORT>
 NO_PROXY=localhost,127.0.0.1,::1
 ```
 
@@ -83,7 +83,7 @@ psql -U postgres -h localhost
 
 -- 데이터베이스 및 사용자 생성
 CREATE DATABASE user_service;
-CREATE USER app_user WITH PASSWORD 'app123!@#';
+CREATE USER app_user WITH PASSWORD '<YOUR_DB_PASSWORD>';
 GRANT ALL PRIVILEGES ON DATABASE user_service TO app_user;
 
 -- 연결 테스트
@@ -465,7 +465,7 @@ curl -X GET http://localhost:3002/api/user/database/info \
 ```sql
 -- PostgreSQL에서 사용자 재생성
 DROP USER IF EXISTS app_user;
-CREATE USER app_user WITH PASSWORD 'app123!@#';
+CREATE USER app_user WITH PASSWORD '<YOUR_DB_PASSWORD>';
 GRANT ALL PRIVILEGES ON DATABASE user_service TO app_user;
 ```
 
@@ -483,8 +483,8 @@ GRANT ALL PRIVILEGES ON DATABASE user_service TO app_user;
 **해결방법**:
 ```env
 # 따옴표로 감싸기
-DB_PASS="app123!@#"  # ✅ 올바름
-DB_PASS=app123!@#    # ❌ 틀림
+DB_PASS="<YOUR_DB_PASSWORD>"  # ✅ 올바름
+DB_PASS=<YOUR_PASSWORD_WITH_#>    # ❌ 틀림
 ```
 
 #### 4. Rate Limiting 오류

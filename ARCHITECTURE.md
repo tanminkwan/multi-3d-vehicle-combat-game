@@ -105,7 +105,7 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=user_service
 DB_USER=app_user
-DB_PASS="app123!@#"
+DB_PASS="<YOUR_DB_PASSWORD>"
 
 # JWT 설정
 JWT_SECRET="your-super-secret-jwt-key-change-in-production"
@@ -539,7 +539,7 @@ services:
     environment:
       - POSTGRES_DB=user_service
       - POSTGRES_USER=app_user
-      - POSTGRES_PASSWORD=app123!@#
+      - POSTGRES_PASSWORD=<YOUR_DB_PASSWORD>
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

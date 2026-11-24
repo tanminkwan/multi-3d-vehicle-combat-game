@@ -24,7 +24,7 @@ scripts/setup-database.bat
 
 **생성되는 것들:**
 - 데이터베이스: `vehicle_game`
-- 사용자: `app_user` (비밀번호: `app123!@#`)
+- 사용자: `app_user` (비밀번호: `<YOUR_DB_PASSWORD>`)
 - 필요한 권한들
 
 ### 2. 연결 테스트
@@ -50,7 +50,7 @@ npm start
 ## ⚙️ 환경 요구사항
 
 - **PostgreSQL 17** (또는 호환 버전)
-- **관리자 비밀번호**: `1q2w3e4r!!` (스크립트에서 사용)
+- **관리자 비밀번호**: `<YOUR_ADMIN_PASSWORD>` (환경 변수 `PGPASSWORD`로 전달)
 - **Windows 환경** (배치 파일)
 
 ## 🔧 설정 변경

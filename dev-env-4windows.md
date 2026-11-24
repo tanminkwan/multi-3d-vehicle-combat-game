@@ -117,7 +117,7 @@ psql -U postgres -h localhost
 CREATE DATABASE user_service;
 
 -- 애플리케이션 사용자 생성
-CREATE USER app_user WITH PASSWORD 'app123!@#';
+CREATE USER app_user WITH PASSWORD '<YOUR_DB_PASSWORD>';
 
 -- 권한 부여
 GRANT ALL PRIVILEGES ON DATABASE user_service TO app_user;
@@ -209,15 +209,15 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=user_service
 DB_USER=app_user
-DB_PASS="app123!@#"
+DB_PASS="<YOUR_DB_PASSWORD>"
 
 # JWT 설정
 JWT_SECRET="your-super-secret-jwt-key-change-in-production"
 JWT_EXPIRY=24h
 
 # 프록시 설정 (필요한 경우)
-HTTP_PROXY=http://70.10.15.10:8080
-HTTPS_PROXY=http://70.10.15.10:8080
+HTTP_PROXY=http://<PROXY_HOST>:<PROXY_PORT>
+HTTPS_PROXY=http://<PROXY_HOST>:<PROXY_PORT>
 NO_PROXY=localhost,127.0.0.1,::1
 ```
 
@@ -465,7 +465,7 @@ psql -U postgres -h localhost
 
 ```sql
 DROP USER IF EXISTS app_user;
-CREATE USER app_user WITH PASSWORD 'app123!@#';
+CREATE USER app_user WITH PASSWORD '<YOUR_DB_PASSWORD>';
 GRANT ALL PRIVILEGES ON DATABASE user_service TO app_user;
 ```
 
@@ -512,7 +512,7 @@ netstat -ano | findstr :80
 # 메모장에서 다른 이름으로 저장 → 인코딩: UTF-8
 
 # 특수문자 문제 해결
-# DB_PASS="app123!@#"  (따옴표 필수)
+# DB_PASS="<YOUR_DB_PASSWORD>"  (따옴표 필수)
 ```
 
 #### 5. npm 의존성 설치 실패
@@ -538,8 +538,8 @@ npm install
 
 ```powershell
 # npm 프록시 설정
-npm config set proxy http://70.10.15.10:8080
-npm config set https-proxy http://70.10.15.10:8080
+npm config set proxy http://<PROXY_HOST>:<PROXY_PORT>
+npm config set https-proxy http://<PROXY_HOST>:<PROXY_PORT>
 
 # 프록시 해제
 npm config delete proxy

@@ -274,7 +274,7 @@ docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
 ```bash
 # 1. PostgreSQL 실행 (Docker 또는 로컬)
 docker run -d --name postgres \
-  -e POSTGRES_PASSWORD=1q2w3e4r!! \
+  -e POSTGRES_PASSWORD=<YOUR_DB_PASSWORD> \
   -p 5432:5432 postgres:15
 
 # 2. User Service 실행

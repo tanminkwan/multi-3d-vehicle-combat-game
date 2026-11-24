@@ -8,6 +8,13 @@
 
 실시간 멀티플레이어 3D 비행체 전투 게임입니다. 완전히 독립적인 마이크로서비스 아키텍처와 JWT 인증을 통한 보안 시스템을 갖춘 본격적인 웹 게임입니다. nginx API 게이트웨이를 통해 사용자 인증과 게임 서비스가 분리되어 있으며, PostgreSQL 데이터베이스를 사용한 사용자 관리 시스템을 제공합니다.
 
+## 📸 게임 스크린샷
+
+| 기체 선택 화면 | 공중 전투 화면 |
+|---|---|
+| ![기체 선택 화면](docs/images/screen-vehicle-selection.png) | ![공중 전투 화면](docs/images/screen-combat-action.png) |
+| 로그인 후 전투기·중형기·테스트기 중 원하는 기체를 선택해 입장 | NPC 및 플레이어와 벌이는 실시간 3D 공중전 (폭발, 선물 상자, `FIRE!` 사정권·락온 UI) |
+
 ## 🏗️ 시스템 아키텍처
 
 ```mermaid
@@ -140,7 +147,7 @@ psql -U postgres -h localhost
 
 -- User Service용 데이터베이스 및 사용자 생성
 CREATE DATABASE user_service;
-CREATE USER app_user WITH PASSWORD 'app123!@#';
+CREATE USER app_user WITH PASSWORD '<YOUR_DB_PASSWORD>';
 GRANT ALL PRIVILEGES ON DATABASE user_service TO app_user;
 
 -- 연결 테스트
@@ -165,18 +172,18 @@ DB_HOST=localhost                 # 데이터베이스 호스트 주소
 DB_PORT=5432                      # PostgreSQL 기본 포트
 DB_NAME=vehicle_game              # 데이터베이스 이름 (변경됨: user_service -> vehicle_game)
 DB_USER=app_user                  # 데이터베이스 사용자명
-DB_PASS="app123!@#"              # 데이터베이스 비밀번호 (특수문자 포함시 따옴표 필요)
+DB_PASS="<YOUR_DB_PASSWORD>"      # 데이터베이스 비밀번호 (특수문자 포함시 따옴표 필요)
 
 # JWT 인증 설정
-JWT_SECRET=your-super-secret-jwt-key-change-in-production  # JWT 서명 키 (반드시 변경 필요)
+JWT_SECRET=<YOUR_JWT_SECRET>      # JWT 서명 키 (반드시 안전한 랜덤 문자열로 설정)
 JWT_EXPIRY=24h                    # 토큰 만료 시간 (24시간)
 
 # 네트워크 보안 설정
 ALLOW_EXTERNAL_ACCESS=false       # 외부 접근 허용 여부 (nginx를 통해서만 접근)
 
 # 프록시 설정 (회사 네트워크 등에서 필요한 경우)
-HTTP_PROXY=http://70.10.15.10:8080   # HTTP 프록시 서버 주소
-HTTPS_PROXY=http://70.10.15.10:8080  # HTTPS 프록시 서버 주소
+HTTP_PROXY=http://<PROXY_HOST>:<PROXY_PORT>   # HTTP 프록시 서버 주소
+HTTPS_PROXY=http://<PROXY_HOST>:<PROXY_PORT>  # HTTPS 프록시 서버 주소
 NO_PROXY=localhost,127.0.0.1,::1     # 프록시를 사용하지 않을 주소 목록
 ```
 
@@ -188,7 +195,7 @@ HOST=127.0.0.1                   # 서버 바인딩 주소 (보안상 localhost�
 PORT=3001                         # Game Service 포트 번호
 
 # JWT 인증 설정 (User Service와 동일해야 함)
-JWT_SECRET=your-super-secret-jwt-key-change-in-production  # JWT 서명 키 (User Service와 동일)
+JWT_SECRET=<YOUR_JWT_SECRET>      # JWT 서명 키 (User Service와 동일)
 
 # 네트워크 보안 설정
 ALLOW_EXTERNAL_ACCESS=false       # 외부 접근 허용 여부 (nginx를 통해서만 접근)
@@ -405,8 +412,8 @@ npm run clean                   # 모든 node_modules 삭제
 **증상**: 비밀번호에 `#` 문자가 있을 때 주석으로 인식
 **해결**: 비밀번호를 따옴표로 감싸기
 ```env
-DB_PASS="app123!@#"  # ✅ 올바름
-DB_PASS=app123!@#    # ❌ 틀림 (# 이후 주석으로 인식)
+DB_PASS="<YOUR_PASSWORD_WITH_#>"  # ✅ 올바름
+DB_PASS=<YOUR_PASSWORD_WITH_#>    # ❌ 틀림 (# 이후 주석으로 인식)
 ```
 
 #### JWT 토큰 불일치
@@ -428,7 +435,7 @@ DB_PASS=app123!@#    # ❌ 틀림 (# 이후 주석으로 인식)
 
 -- 필요시 재생성
 DROP USER IF EXISTS app_user;
-CREATE USER app_user WITH PASSWORD 'app123!@#';
+CREATE USER app_user WITH PASSWORD '<YOUR_DB_PASSWORD>';
 GRANT ALL PRIVILEGES ON DATABASE user_service TO app_user;
 ```
 

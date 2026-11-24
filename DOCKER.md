@@ -129,7 +129,7 @@ docker-compose down --rmi all
 PostgreSQL 컨테이너는 시작 시 자동으로 다음을 수행합니다:
 
 1. `vehicle_game` 데이터베이스 생성
-2. `app_user` 사용자 생성 (비밀번호: `app123!@#`)
+2. `app_user` 사용자 생성 (비밀번호: `.env` 또는 `docker-compose.yml`에서 설정)
 3. 필요한 권한 부여
 
 초기화 스크립트: `services/user-service/scripts/init-db.sql`

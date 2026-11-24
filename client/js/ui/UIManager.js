@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import { UI_COLORS } from '../config/Constants.js';
+import { formatGameEventNotification } from './GameEventNotificationFormatter.js';
 
 export class UIManager {
     constructor(config) {
@@ -398,32 +399,19 @@ export class UIManager {
      * 게임 이벤트 알림
      */
     showGameEvent(eventType, data) {
-        switch (eventType) {
-            case 'gameStarted':
-                this.updateGameStatus('게임 진행 중');
-                this.showNotification('게임이 시작되었습니다!', 'success');
-                break;
-                
-            case 'gameEnded':
-                this.updateGameStatus('게임 종료');
-                this.showNotification('게임이 종료되었습니다.', 'info');
-                break;
-                
-            case 'vehicleDestroyed':
-                if (data && data.destroyedBy) {
-                    this.showNotification(`차량이 파괴되었습니다!`, 'warning');
-                }
-                break;
-                
-            case 'vehicleRespawned':
-                this.showNotification('차량이 리스폰되었습니다.', 'success');
-                break;
-                
-            case 'billboardDestroyed':
-                if (data && data.destroyedBy) {
-                    this.showNotification(`광고판이 파괴되었습니다!`, 'info');
-                }
-                break;
+        if (eventType === 'gameStarted') {
+            this.updateGameStatus('게임 진행 중');
+        } else if (eventType === 'gameEnded') {
+            this.updateGameStatus('게임 종료');
+        }
+
+        const notification = formatGameEventNotification(eventType, data, {
+            myPlayerId: this.myPlayer?.id ?? null,
+            players: this.latestGameState?.players ?? []
+        });
+
+        if (notification) {
+            this.showNotification(notification.message, notification.type);
         }
     }
     

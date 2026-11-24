@@ -399,9 +399,17 @@ export default class GameManager {
     handleVehicleDestroyed(vehicle, collision) {
         if (!vehicle) return;
         vehicle.active = false;
+        const killerId = collision?.ownerId || null;
+        const victimPlayer = this.playerManager.getPlayer(vehicle.playerId);
+        const killerPlayer = killerId ? this.playerManager.getPlayer(killerId) : null;
         this.eventEmitter.emit('vehicleDestroyed', {
-            vehicleId: vehicle.id, playerId: vehicle.playerId, killedBy: collision.ownerId || null,
-            position: vehicle.position, shouldHide: true
+            vehicleId: vehicle.id,
+            playerId: vehicle.playerId,
+            playerName: victimPlayer?.name || null,
+            killedBy: killerId,
+            killerName: killerPlayer?.name || null,
+            position: vehicle.position,
+            shouldHide: true
         });
         const { explosionRadiusLarge, explosionDurationLarge, explosionIntensityLarge } = this.config.collision;
         this.effectSystem.createExplosion(vehicle.position, explosionRadiusLarge, explosionDurationLarge, explosionIntensityLarge);
