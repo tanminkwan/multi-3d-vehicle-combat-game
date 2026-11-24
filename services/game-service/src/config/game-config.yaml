@@ -9,6 +9,8 @@ game:
   minPlayersToStart: 1               # 게임 시작에 필요한 최소 플레이어 수
   gameMode: "deathmatch"             # 게임 모드 (deathmatch, team, etc.)
   respawnTime: 5000                  # 리스폰 시간 (밀리초) - 5초로 변경
+  respawnInvulnerabilityMs: 5000     # 리스폰 후 무적 지속 시간 (밀리초) - 5초
+  respawnMinDistanceFromDeath: 40    # 이전 파괴 위치로부터 최소 이격 거리
   
 server:
   port: 3001                         # 서버 포트 번호
@@ -137,12 +139,12 @@ vehicles:
     - "#800080"                      # 보라
   
   fighter:                           # 전투기 설정 (빠르고 민첩)
-    maxSpeed: 120                    # 최대 속도
-    acceleration: 60                 # 가속도
-    turnSpeed: 1.2                   # 회전 속도 (요/피치/롤) - 미세 조정을 위해 감소
-    rollSpeed: 1.0                   # 롤 속도 - 미세 조정을 위해 감소
-    pitchSpeed: 1.0                  # 피치 속도 - 미세 조정을 위해 감소
-    yawSpeed: 1.0                    # 요 속도 - 미세 조정을 위해 감소
+    maxSpeed: 60                     # 최대 속도 (120 -> 60)
+    acceleration: 30                 # 가속도 (60 -> 30)
+    turnSpeed: 0.6                   # 회전 속도 (1.2 -> 0.6)
+    rollSpeed: 0.5                   # 롤 속도 (1.0 -> 0.5)
+    pitchSpeed: 0.5                  # 피치 속도 (1.0 -> 0.5)
+    yawSpeed: 0.5                    # 요 속도 (1.0 -> 0.5)
     health: 80                       # 체력
     fireRate: 12                     # 초당 발사 수
     bulletDamage: 8                  # 총알 데미지
@@ -179,12 +181,12 @@ vehicles:
         position: { x: 0, y: 0, z: -4.5 } # 위치 (엔진 뒤)
     
   heavy:                             # 중형기 설정 (느리지만 강력)
-    maxSpeed: 80                     # 최대 속도 (전투기보다 느림)
-    acceleration: 35                 # 가속도 (전투기보다 느림)
-    turnSpeed: 1.0                   # 회전 속도 (전투기보다 느림)
-    rollSpeed: 0.7                   # 롤 속도
-    pitchSpeed: 0.7                  # 피치 속도
-    yawSpeed: 0.7                    # 요 속도
+    maxSpeed: 40                     # 최대 속도 (80 -> 40)
+    acceleration: 17.5               # 가속도 (35 -> 17.5)
+    turnSpeed: 0.5                   # 회전 속도 (1.0 -> 0.5)
+    rollSpeed: 0.35                  # 롤 속도 (0.7 -> 0.35)
+    pitchSpeed: 0.35                 # 피치 속도 (0.7 -> 0.35)
+    yawSpeed: 0.35                   # 요 속도 (0.7 -> 0.35)
     health: 150                      # 체력 (전투기보다 높음)
     fireRate: 8                      # 초당 발사 수 (전투기보다 낮음)
     bulletDamage: 15                 # 총알 데미지 (전투기보다 높음)
@@ -223,6 +225,19 @@ vehicles:
         positions:                   # 좌우 글로우 위치
           - { x: -3, y: 0, z: -5.5 } # 좌측 글로우
           - { x: 3, y: 0, z: -5.5 }  # 우측 글로우
+
+  test:                              # 테스트기 설정 (Vehicle.js 기본값의 절반으로 외부화)
+    maxSpeed: 50                     # 최대 속도 (100 -> 50)
+    acceleration: 30                 # 가속도 (60 -> 30)
+    turnSpeed: 1.25                  # 회전 속도 (2.5 -> 1.25)
+    rollSpeed: 1.75                  # 롤 속도 (3.5 -> 1.75)
+    pitchSpeed: 1.25                 # 피치 속도 (2.5 -> 1.25)
+    yawSpeed: 1.25                   # 요 속도 (2.5 -> 1.25)
+    health: 20
+    fireRate: 12
+    bulletDamage: 8
+    bulletSpeed: 220
+    bulletRange: 280
   
 weapons:
   machineGun:                        # 기관총 설정
@@ -319,6 +334,41 @@ client:
     antialias: false                 # 안티앨리어싱 비활성화 (성능 향상)
     powerPreference: "low-power"     # GPU 전력 설정 ("default", "high-performance", "low-power")
     lowPerformanceMode: true         # 저성능 모드 활성화 (추가 최적화)
+  graphics:                          # 절차적 텍스처 / PBR / 조명 프리셋 설정
+    preset: "medium"                 # "low" | "medium" | "high"
+    presets:
+      low:
+        textureSize: 128
+        enableEnvironmentMap: false
+        toneMappingExposure: 1.05
+        waterScrollSpeed: 0.02
+        cloudPuffs: 2
+      medium:
+        textureSize: 256
+        enableEnvironmentMap: true
+        toneMappingExposure: 1.1
+        waterScrollSpeed: 0.03
+        cloudPuffs: 3
+      high:
+        textureSize: 512
+        enableEnvironmentMap: true
+        toneMappingExposure: 1.15
+        waterScrollSpeed: 0.035
+        cloudPuffs: 4
+    palette:
+      skyTopColor: "#1a4b8c"
+      skyMidColor: "#5fa4db"
+      skyHorizonColor: "#cfe6f7"
+      sunColor: "#fff6d6"
+      hemisphereSkyColor: "#b8dcff"
+      hemisphereGroundColor: "#485a40"
+      hemisphereIntensity: 0.75
+      directionalLightIntensity: 1.15
+      waterColor: "#1b7fa3"
+      waterOpacity: 0.72
+      vehicleMetalness: 0.55
+      vehicleRoughness: 0.35
+      vehicleBumpScale: 0.08
 
 # 성능 모니터링 설정
 performance:

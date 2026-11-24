@@ -50,9 +50,10 @@ export default class Vehicle extends GameEntity {
         this.lastFireTime = 0;
         this.fireRate = typeConfig.fireRate;
         
-        // 활성 상태
+        // 활성 및 무적 상태
         this.active = true;
         this.visible = true; // 가시성 상태 (기본적으로 보임)
+        this.invulnerableUntil = 0; // 무적 종료 시각 (ms timestamp)
 
         // Raycasting을 위한 간단한 메쉬 및 경계 상자
         this.geometry = new THREE.BoxGeometry(10, 5, 15); // 비행기 크기에 맞는 박스
@@ -252,10 +253,24 @@ export default class Vehicle extends GameEntity {
     }
 
     /**
-     * 데미지 처리
+     * 현재 무적 상태인지 확인
      */
-    takeDamage(damage) {
-        if (!this.active) return false;
+    isInvulnerable(now = Date.now()) {
+        return now < this.invulnerableUntil;
+    }
+
+    /**
+     * 일정 시간 동안 무적 부여
+     */
+    grantInvulnerability(durationMs, now = Date.now()) {
+        this.invulnerableUntil = now + Math.max(0, durationMs || 0);
+    }
+
+    /**
+     * 데미지 처리 (무적 상태일 때는 타격을 받지 않음)
+     */
+    takeDamage(damage, now = Date.now()) {
+        if (!this.active || this.isInvulnerable(now)) return false;
         
         this.health -= damage;
         
@@ -268,9 +283,10 @@ export default class Vehicle extends GameEntity {
     }
 
     /**
-     * 리스폰
+     * 리스폰 (임의의 안전한 위치 배치 + 5초 무적 부여)
      */
-    respawn(spawnPosition = null) {
+    respawn(spawnPosition = null, options = {}) {
+        const now = options.now ?? Date.now();
         if (spawnPosition) {
             this.position.set(spawnPosition.x, spawnPosition.y, spawnPosition.z);
         } else {
@@ -295,12 +311,18 @@ export default class Vehicle extends GameEntity {
         this.health = this.maxHealth;
         this.active = true;
         this.visible = true; // 리스폰 시 다시 보이게
+
+        const invulnerabilityMs = options.invulnerabilityMs
+            ?? this.config?.game?.respawnInvulnerabilityMs
+            ?? 5000;
+        this.grantInvulnerability(invulnerabilityMs, now);
+        this.updateMesh();
     }
 
     /**
      * 직렬화
      */
-    serialize() {
+    serialize(now = Date.now()) {
         return {
             id: this.id,
             playerId: this.playerId,
@@ -313,7 +335,9 @@ export default class Vehicle extends GameEntity {
             vehicleType: this.vehicleType,
             active: this.active,
             visible: this.visible,
-            timestamp: Date.now()
+            isInvulnerable: this.isInvulnerable(now),
+            invulnerableUntil: this.invulnerableUntil,
+            timestamp: now
         };
     }
 } 

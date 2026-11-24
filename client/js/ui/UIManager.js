@@ -83,6 +83,9 @@ export class UIManager {
 
         if (myVehicle && myVehicle.userData.vehicleData) {
             const vehicleData = myVehicle.userData.vehicleData;
+            const shieldBadge = vehicleData.isInvulnerable
+                ? '<p id="invulnerableBadge" style="color: #4fc3f7; font-weight: bold;">🛡️ 무적 보호 중</p>'
+                : '';
             this.elements.playerInfo.innerHTML = `
                 <p><strong>이름:</strong> ${this.myPlayer.name}</p>
                 <p><strong>점수:</strong> ${this.myPlayer.score || 0}</p>
@@ -90,6 +93,7 @@ export class UIManager {
                 <p><strong>데스:</strong> ${this.myPlayer.deaths || 0}</p>
                 <p><strong>체력:</strong> ${vehicleData.health}/${vehicleData.maxHealth}</p>
                 <p><strong>미사일:</strong> ${missileAmmo}/${missileMaxAmmo}</p>
+                ${shieldBadge}
             `;
             
             // 체력바 업데이트
@@ -420,6 +424,13 @@ export class UIManager {
                 notification.parentNode.removeChild(notification);
             }
         });
+
+        // 타겟팅 컨테이너 및 박스 정리 (재입장 시 중복 DOM 방지)
+        if (this.elements.targetingContainer && this.elements.targetingContainer.parentNode) {
+            this.elements.targetingContainer.parentNode.removeChild(this.elements.targetingContainer);
+        }
+        this.elements.targetingContainer = null;
+        this.targetBoxes.clear();
         
         // 데이터 초기화
         this.myPlayer = null;

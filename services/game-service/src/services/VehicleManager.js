@@ -1,14 +1,20 @@
 import { v4 as uuidv4 } from 'uuid';
+import { SpawnPositionResolver } from './SpawnPositionResolver.js';
 
 /**
  * 차량(Vehicle)의 생성, 제거, 업데이트 등 생명주기를 관리하는 클래스
  */
 export class VehicleManager {
-    constructor(config, eventEmitter, vehicleFactory, terrainManager) {
+    constructor(config, eventEmitter, vehicleFactory, terrainManager, spawnPositionResolver = null) {
         this.config = config;
         this.eventEmitter = eventEmitter;
         this.vehicleFactory = vehicleFactory;
         this.terrainManager = terrainManager;
+        this.spawnPositionResolver = spawnPositionResolver || new SpawnPositionResolver(
+            config.world,
+            terrainManager,
+            { minDistanceFromPrevious: config.game?.respawnMinDistanceFromDeath ?? 40 }
+        );
 
         this.vehicles = new Map();
     }
@@ -51,18 +57,23 @@ export class VehicleManager {
     }
 
     /**
-     * 파괴된 차량을 리스폰시킵니다.
+     * 파괴된 차량을 임의의 안전한 위치에서 리스폰시키고 무적 시간을 부여합니다.
      * @param {Vehicle} vehicle 
      */
     respawnVehicle(vehicle) {
-        const spawnPosition = this.getSpawnPosition();
+        const previousPosition = {
+            x: vehicle.position.x,
+            y: vehicle.position.y,
+            z: vehicle.position.z
+        };
+        const spawnPosition = this.getSpawnPosition(previousPosition);
         vehicle.respawn(spawnPosition);
         
         this.eventEmitter.emit('vehicleRespawned', {
             vehicle: vehicle.serialize(),
             shouldShow: true 
         });
-        console.log(`[VehicleManager] Respawned vehicle for player ${vehicle.playerId}`);
+        console.log(`[VehicleManager] Respawned vehicle for player ${vehicle.playerId} at (${spawnPosition.x.toFixed(1)}, ${spawnPosition.y.toFixed(1)}, ${spawnPosition.z.toFixed(1)}) with invulnerability`);
     }
 
     /**
@@ -75,20 +86,8 @@ export class VehicleManager {
         }
     }
     
-    getSpawnPosition() {
-        const angle = Math.random() * Math.PI * 2;
-        const minDistance = this.config.world?.spawnDistance?.min || 50;
-        const maxDistance = this.config.world?.spawnDistance?.max || 150;
-        const distance = minDistance + Math.random() * (maxDistance - minDistance);
-        
-        const minHeight = this.config.world?.spawnHeight?.min || 50;
-        const maxHeight = this.config.world?.spawnHeight?.max || 70;
-        
-        return {
-            x: Math.cos(angle) * distance,
-            y: minHeight + Math.random() * (maxHeight - minHeight),
-            z: Math.sin(angle) * distance
-        };
+    getSpawnPosition(previousPosition = null) {
+        return this.spawnPositionResolver.resolve(previousPosition);
     }
 
     getPlayerVehicle(playerId) {

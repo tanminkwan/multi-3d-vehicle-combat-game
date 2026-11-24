@@ -177,6 +177,7 @@
                 <h3>🎮 게임 정보</h3>
                 <div id="gameStatus">대기 중...</div>
                 <div id="playerInfo"></div>
+                <button id="leaveGameBtn" type="button" onclick="leaveGame()">🚪 게임 나가기</button>
             </div>
             
             <div id="playerList">
@@ -692,6 +693,69 @@
             }
         }
         
+        // 게임 나가기 (확장용 onBeforeLeave / onAfterLeave 콜백 호출)
+        let isLeavingGame = false;
+        async function leaveGame() {
+            if (isLeavingGame) return;
+            isLeavingGame = true;
+
+            try {
+                const {
+                    defaultOnBeforeLeave,
+                    defaultOnAfterLeave,
+                    invokeSafeLeaveCallback
+                } = await import('./js/callbacks/leaveCallbacks.js');
+
+                const customCallbacks = window.gameLeaveCallbacks || {};
+                const onBeforeLeave = customCallbacks.onBeforeLeave || defaultOnBeforeLeave;
+                const onAfterLeave = customCallbacks.onAfterLeave || defaultOnAfterLeave;
+
+                const leaveContext = {
+                    player: gameClient?.myPlayer ? { ...gameClient.myPlayer } : null,
+                    reason: 'leave',
+                    leftAt: Date.now()
+                };
+
+                // 1. 나가기 직전 확장용 콜백 호출 (기본: 빈 no-op)
+                await invokeSafeLeaveCallback(onBeforeLeave, leaveContext);
+
+                // 2. 서버에 게임 퇴장 알림 (leaveSuccess 응답 또는 2초 폴백 대기)
+                if (socket && socket.connected) {
+                    await new Promise((resolve) => {
+                        let settled = false;
+                        const finish = () => {
+                            if (settled) return;
+                            settled = true;
+                            socket.off('leaveSuccess', finish);
+                            clearTimeout(timer);
+                            resolve();
+                        };
+                        const timer = setTimeout(finish, 2000);
+                        socket.once('leaveSuccess', finish);
+                        socket.emit('leaveGame');
+                    });
+                }
+
+                // 3. 클라이언트 게임 리소스 정리
+                if (gameClient) {
+                    gameClient.cleanup();
+                    gameClient = null;
+                }
+
+                // 4. 차량 선택 화면(로비)으로 복귀 (로그인 및 소켓 연결 유지)
+                showScreen('vehicleSelectionScreen');
+                showMessage('게임에서 나갔습니다.', 2000);
+
+                // 5. 나가기 완료 후 확장용 콜백 호출 (기본: 빈 no-op)
+                await invokeSafeLeaveCallback(onAfterLeave, leaveContext);
+            } catch (error) {
+                console.error('게임 나가기 오류:', error);
+                showScreen('vehicleSelectionScreen');
+            } finally {
+                isLeavingGame = false;
+            }
+        }
+
         // 메시지 표시
         function showMessage(message, duration = 3000) {
             const messagesDiv = document.getElementById('messages');

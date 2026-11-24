@@ -177,9 +177,23 @@ export function createGameServer(config, options = {}) {
             gameManager.handlePlayerInput(socket.id, inputs);
         });
 
+        socket.on('leaveGame', () => {
+            console.log(`Client left game: ${socket.id} (User: ${socket.username})`);
+            const removed = gameManager.removePlayer(socket.id, {
+                reason: 'leave',
+                userId: socket.userId,
+                username: socket.username
+            });
+            socket.emit('leaveSuccess', { success: true, removed });
+        });
+
         socket.on('disconnect', () => {
             console.log(`Client disconnected: ${socket.id} (User: ${socket.username})`);
-            gameManager.removePlayer(socket.id);
+            gameManager.removePlayer(socket.id, {
+                reason: 'disconnect',
+                userId: socket.userId,
+                username: socket.username
+            });
         });
     });
 

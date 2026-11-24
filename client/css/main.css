@@ -281,6 +281,24 @@ body {
     pointer-events: auto;
 }
 
+#leaveGameBtn {
+    margin-top: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #e53935;
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#leaveGameBtn:hover {
+    background: #c62828;
+}
+
 #playerList {
     position: absolute;
     top: 20px;

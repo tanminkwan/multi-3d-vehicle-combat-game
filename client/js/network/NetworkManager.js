@@ -25,93 +25,54 @@ export class NetworkManager {
             onVehicleRespawned: null,
             onGameStarted: null,
             onGameEnded: null,
-            onMissileLaunched: null
+            onMissileLaunched: null,
+            onGiftBoxDestroyed: null,
+            onPlayerNotification: null
         };
         
+        // 등록한 소켓 리스너 추적 (로비 리스너를 보존하면서 게임 리스너만 해제하기 위함)
+        this.boundSocketListeners = [];
+
         this.setupSocketListeners();
     }
     
     /**
+     * 소켓 이벤트 리스너 등록 헬퍼
+     */
+    registerSocketListener(eventName, handler) {
+        this.socket.on(eventName, handler);
+        this.boundSocketListeners.push({ eventName, handler });
+    }
+
+    /**
      * 소켓 이벤트 리스너 설정
      */
     setupSocketListeners() {
-        this.socket.on('gameStateUpdate', (gameState) => {
-            if (this.callbacks.onGameStateUpdate) {
-                this.callbacks.onGameStateUpdate(gameState);
-            }
-        });
-        
-        this.socket.on('bulletCreated', (data) => {
-            if (this.callbacks.onBulletCreated) {
-                this.callbacks.onBulletCreated(data);
-            }
-        });
-        
-        this.socket.on('muzzleFlash', (data) => {
-            if (this.callbacks.onMuzzleFlash) {
-                this.callbacks.onMuzzleFlash(data);
-            }
-        });
-        
-        this.socket.on('missileLaunched', (data) => {
-            if (this.callbacks.onMissileLaunched) {
-                this.callbacks.onMissileLaunched(data);
-            }
-        });
-        
-        this.socket.on('bulletDestroyed', (data) => {
-            if (this.callbacks.onBulletDestroyed) {
-                this.callbacks.onBulletDestroyed(data);
-            }
-        });
-        
-        this.socket.on('explosionCreated', (data) => {
-            if (this.callbacks.onExplosionCreated) {
-                this.callbacks.onExplosionCreated(data);
-            }
-        });
-        
-        this.socket.on('explosionDestroyed', (data) => {
-            if (this.callbacks.onExplosionDestroyed) {
-                this.callbacks.onExplosionDestroyed(data);
-            }
-        });
-        
-        this.socket.on('bulletHoleCreated', (data) => {
-            if (this.callbacks.onBulletHoleCreated) {
-                this.callbacks.onBulletHoleCreated(data);
-            }
-        });
-        
-        this.socket.on('billboardDestroyed', (data) => {
-            if (this.callbacks.onBillboardDestroyed) {
-                this.callbacks.onBillboardDestroyed(data);
-            }
-        });
-        
-        this.socket.on('vehicleDestroyed', (data) => {
-            if (this.callbacks.onVehicleDestroyed) {
-                this.callbacks.onVehicleDestroyed(data);
-            }
-        });
-        
-        this.socket.on('vehicleRespawned', (data) => {
-            if (this.callbacks.onVehicleRespawned) {
-                this.callbacks.onVehicleRespawned(data);
-            }
-        });
-        
-        this.socket.on('gameStarted', (data) => {
-            if (this.callbacks.onGameStarted) {
-                this.callbacks.onGameStarted(data);
-            }
-        });
-        
-        this.socket.on('gameEnded', () => {
-            if (this.callbacks.onGameEnded) {
-                this.callbacks.onGameEnded();
-            }
-        });
+        const mappings = [
+            ['gameStateUpdate', 'onGameStateUpdate'],
+            ['bulletCreated', 'onBulletCreated'],
+            ['muzzleFlash', 'onMuzzleFlash'],
+            ['missileLaunched', 'onMissileLaunched'],
+            ['bulletDestroyed', 'onBulletDestroyed'],
+            ['explosionCreated', 'onExplosionCreated'],
+            ['explosionDestroyed', 'onExplosionDestroyed'],
+            ['bulletHoleCreated', 'onBulletHoleCreated'],
+            ['billboardDestroyed', 'onBillboardDestroyed'],
+            ['giftBoxDestroyed', 'onGiftBoxDestroyed'],
+            ['vehicleDestroyed', 'onVehicleDestroyed'],
+            ['vehicleRespawned', 'onVehicleRespawned'],
+            ['playerNotification', 'onPlayerNotification'],
+            ['gameStarted', 'onGameStarted'],
+            ['gameEnded', 'onGameEnded']
+        ];
+
+        for (const [eventName, callbackKey] of mappings) {
+            this.registerSocketListener(eventName, (data) => {
+                if (this.callbacks[callbackKey]) {
+                    this.callbacks[callbackKey](data);
+                }
+            });
+        }
     }
     
     /**
@@ -172,13 +133,15 @@ export class NetworkManager {
     }
     
     /**
-     * 정리 작업
+     * 정리 작업 (NetworkManager가 등록한 게임 리스너만 해제하여 로비 리스너 보존)
      */
     cleanup() {
-        // 모든 이벤트 리스너 제거
         if (this.socket) {
-            this.socket.removeAllListeners();
+            for (const { eventName, handler } of this.boundSocketListeners) {
+                this.socket.off(eventName, handler);
+            }
         }
+        this.boundSocketListeners = [];
         
         // 콜백 초기화
         Object.keys(this.callbacks).forEach(key => {

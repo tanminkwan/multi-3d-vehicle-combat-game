@@ -12,6 +12,7 @@ import { BillboardManager } from './BillboardManager.js';
 import { TargetingManager } from './TargetingManager.js';
 import { GiftBoxManager } from './GiftBoxManager.js';
 import { NpcManager } from './NpcManager.js';
+import { defaultOnPlayerLeave, createSafeLeaveInvoker } from './hooks/PlayerLeaveCallback.js';
 
 /**
  * 게임의 모든 시스템을 총괄하고 오케스트레이션하는 최상위 클래스
@@ -38,6 +39,9 @@ export default class GameManager {
 
         // 리스폰 타이머 관리 (플레이어/NPC 제거 시 유령 리스폰 방지)
         this.respawnTimers = new Map();
+
+        // 플레이어 퇴장 확장용 콜백 (기본값: 빈 no-op 콜백)
+        this.invokePlayerLeave = createSafeLeaveInvoker(options.onPlayerLeave || defaultOnPlayerLeave);
 
         // 게임 루프
         this.lastUpdateTime = Date.now();
@@ -145,7 +149,14 @@ export default class GameManager {
     }
 
     /**
-     * 플레이어 제거 오케스트레이션
+     * 플레이어 퇴장 콜백 교체 (OCP / DIP)
+     */
+    setOnPlayerLeave(callback) {
+        this.invokePlayerLeave = createSafeLeaveInvoker(callback);
+    }
+
+    /**
+     * 플레이어 제거 오케스트레이션 (멱등성 보장)
      */
     removePlayer(playerId, options = {}) {
         // 진행 중인 리스폰 타이머 취소 (유령 리스폰 방지)
@@ -156,13 +167,34 @@ export default class GameManager {
         }
 
         const existingPlayer = this.playerManager.getPlayer(playerId);
-        const wasNpc = Boolean(existingPlayer?.isNpc);
+        if (!existingPlayer) {
+            return false;
+        }
+        const wasNpc = Boolean(existingPlayer.isNpc);
 
         this.vehicleManager.removeVehicleForPlayer(playerId);
         this.weaponSystem.removePlayerWeapons(playerId);
         this.playerManager.removePlayer(playerId);
 
         if (!wasNpc && !options.fromNpcManager) {
+            const leftAt = Date.now();
+            const leaveContext = {
+                playerId: existingPlayer.id,
+                userId: options.userId || null,
+                username: options.username || existingPlayer.name,
+                reason: options.reason || 'disconnect',
+                vehicleType: existingPlayer.vehicleType,
+                stats: {
+                    score: existingPlayer.score || 0,
+                    kills: existingPlayer.kills || 0,
+                    deaths: existingPlayer.deaths || 0
+                },
+                joinedAt: existingPlayer.joinedAt,
+                leftAt,
+                playTimeMs: Math.max(0, leftAt - (existingPlayer.joinedAt || leftAt))
+            };
+            this.invokePlayerLeave(leaveContext);
+
             this.npcManager.reconcile();
             this.gameStateManager.updatePlayerCount(this.playerManager.getHumanCount());
             this.syncGameState();
@@ -277,6 +309,9 @@ export default class GameManager {
     handleVehicleHit(collision) {
         const vehicle = this.vehicleManager.getVehicle(collision.targetId);
         if (!vehicle || !vehicle.active) return;
+
+        // 리스폰 무적 시간 중에는 타격을 받지 않음
+        if (vehicle.isInvulnerable()) return;
 
         // NPC 피격 시 회피 반응 예약
         this.npcManager.notifyNpcHit(vehicle.playerId, collision.ownerId);

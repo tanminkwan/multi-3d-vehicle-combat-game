@@ -1,0 +1,5 @@
+{
+  "name": "vehicle-game-client",
+  "private": true,
+  "type": "module"
+}

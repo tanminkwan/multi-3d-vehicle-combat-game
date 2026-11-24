@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VEHICLE_DEFAULTS, MATERIAL_OPACITY, COCKPIT_COLOR, ROTATION_SETTINGS } from '../config/Constants.js';
+import { resolveGraphicsConfig } from '../graphics/GraphicsPresetResolver.js';
 
 /**
  * 비행체 팩토리 클래스
@@ -7,13 +8,44 @@ import { VEHICLE_DEFAULTS, MATERIAL_OPACITY, COCKPIT_COLOR, ROTATION_SETTINGS } 
  * Factory Pattern을 사용하여 확장성 제공
  */
 export class VehicleFactory {
-    constructor(scene, config) {
+    constructor(scene, config, graphicsDeps = {}) {
         this.scene = scene;
         this.config = config;
+        this.graphicsConfig = graphicsDeps.graphicsConfig || resolveGraphicsConfig(config?.client);
+        this.textureFactory = graphicsDeps.textureFactory || null;
         
         // 비행체 타입별 생성 함수 등록
         this.vehicleCreators = new Map();
         this.registerVehicleCreators();
+    }
+
+    /**
+     * 비행체 동체/날개용 PBR 금속 패널 재질 생성 (SRP)
+     */
+    createBodyMaterial(color) {
+        const palette = this.graphicsConfig.palette;
+        const panelTextures = this.textureFactory ? this.textureFactory.getVehiclePanelTextures() : null;
+        return new THREE.MeshStandardMaterial({
+            color,
+            map: panelTextures?.map || null,
+            bumpMap: panelTextures?.bumpMap || null,
+            bumpScale: palette.vehicleBumpScale ?? 0.08,
+            metalness: palette.vehicleMetalness ?? 0.55,
+            roughness: palette.vehicleRoughness ?? 0.35
+        });
+    }
+
+    /**
+     * 조종석 틴티드 글래스 PBR 재질 생성
+     */
+    createCockpitMaterial() {
+        return new THREE.MeshStandardMaterial({
+            color: COCKPIT_COLOR,
+            transparent: true,
+            opacity: 0.55,
+            metalness: 0.2,
+            roughness: 0.08
+        });
     }
     
     /**
@@ -92,25 +124,18 @@ export class VehicleFactory {
         
         // 뾰족한 머리 (항상 앞쪽 +Z 방향)
         const headConfig = modelConfig.head || defaults.model.head;
-        const headGeometry = new THREE.ConeGeometry(headConfig.radius * scale, headConfig.length * scale, 8);
-        const headMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const headGeometry = new THREE.ConeGeometry(headConfig.radius * scale, headConfig.length * scale, 12);
+        const headMaterial = this.createBodyMaterial(vehicleData.color);
         const head = new THREE.Mesh(headGeometry, headMaterial);
         head.rotation.x = Math.PI / 2; // 앞을 향하도록 회전
         head.position.z = 4 * scale; // 앞쪽에 위치
         head.castShadow = true;
         vehicleGroup.add(head);
         
-        // 조종석 (투명한 돔)
+        // 조종석 (틴티드 글래스 돔)
         const cockpitConfig = modelConfig.cockpit || defaults.model.cockpit;
-        const cockpitGeometry = new THREE.SphereGeometry(cockpitConfig.radius * scale, 8, 8);
-        const cockpitMaterial = new THREE.MeshPhongMaterial({
-            color: COCKPIT_COLOR,
-            transparent: true,
-            opacity: MATERIAL_OPACITY.COCKPIT,
-            shininess: 100
-        });
+        const cockpitGeometry = new THREE.SphereGeometry(cockpitConfig.radius * scale, 12, 10);
+        const cockpitMaterial = this.createCockpitMaterial();
         const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
         cockpit.position.set(
             cockpitConfig.position.x * scale,
@@ -126,9 +151,7 @@ export class VehicleFactory {
             bodyConfig.height * scale, 
             bodyConfig.length * scale
         );
-        const bodyMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const bodyMaterial = this.createBodyMaterial(vehicleData.color);
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.castShadow = true;
         vehicleGroup.add(body);
@@ -140,9 +163,7 @@ export class VehicleFactory {
             wingsConfig.height * scale, 
             wingsConfig.length * scale
         );
-        const wingMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const wingMaterial = this.createBodyMaterial(vehicleData.color);
         const wings = new THREE.Mesh(wingGeometry, wingMaterial);
         wings.castShadow = true;
         vehicleGroup.add(wings);
@@ -207,10 +228,8 @@ export class VehicleFactory {
         
         // 더 큰 뾰족한 머리
         const headConfig = modelConfig.head || defaults.model.head;
-        const headGeometry = new THREE.ConeGeometry(headConfig.radius * scale, headConfig.length * scale, 8);
-        const headMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const headGeometry = new THREE.ConeGeometry(headConfig.radius * scale, headConfig.length * scale, 12);
+        const headMaterial = this.createBodyMaterial(vehicleData.color);
         const head = new THREE.Mesh(headGeometry, headMaterial);
         head.rotation.x = Math.PI / 2;
         head.position.z = 5 * scale;
@@ -219,13 +238,8 @@ export class VehicleFactory {
         
         // 더 큰 조종석
         const cockpitConfig = modelConfig.cockpit || defaults.model.cockpit;
-        const cockpitGeometry = new THREE.SphereGeometry(cockpitConfig.radius * scale, 8, 8);
-        const cockpitMaterial = new THREE.MeshPhongMaterial({
-            color: COCKPIT_COLOR,
-            transparent: true,
-            opacity: MATERIAL_OPACITY.COCKPIT,
-            shininess: 100
-        });
+        const cockpitGeometry = new THREE.SphereGeometry(cockpitConfig.radius * scale, 12, 10);
+        const cockpitMaterial = this.createCockpitMaterial();
         const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
         cockpit.position.set(
             cockpitConfig.position.x * scale,
@@ -241,9 +255,7 @@ export class VehicleFactory {
             bodyConfig.height * scale, 
             bodyConfig.length * scale
         );
-        const bodyMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const bodyMaterial = this.createBodyMaterial(vehicleData.color);
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.castShadow = true;
         vehicleGroup.add(body);
@@ -255,9 +267,7 @@ export class VehicleFactory {
             wingsConfig.height * scale, 
             wingsConfig.length * scale
         );
-        const wingMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const wingMaterial = this.createBodyMaterial(vehicleData.color);
         const wings = new THREE.Mesh(wingGeometry, wingMaterial);
         wings.castShadow = true;
         vehicleGroup.add(wings);
@@ -324,10 +334,8 @@ export class VehicleFactory {
         
         // 작은 뾰족한 머리
         const headConfig = modelConfig.head || defaults.model.head;
-        const headGeometry = new THREE.ConeGeometry(headConfig.radius * scale, headConfig.length * scale, 6);
-        const headMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const headGeometry = new THREE.ConeGeometry(headConfig.radius * scale, headConfig.length * scale, 10);
+        const headMaterial = this.createBodyMaterial(vehicleData.color);
         const head = new THREE.Mesh(headGeometry, headMaterial);
         head.rotation.x = Math.PI / 2;
         head.position.z = 3 * scale;
@@ -336,13 +344,8 @@ export class VehicleFactory {
         
         // 작은 조종석
         const cockpitConfig = modelConfig.cockpit || defaults.model.cockpit;
-        const cockpitGeometry = new THREE.SphereGeometry(cockpitConfig.radius * scale, 6, 6);
-        const cockpitMaterial = new THREE.MeshPhongMaterial({
-            color: COCKPIT_COLOR,
-            transparent: true,
-            opacity: MATERIAL_OPACITY.COCKPIT,
-            shininess: 100
-        });
+        const cockpitGeometry = new THREE.SphereGeometry(cockpitConfig.radius * scale, 10, 8);
+        const cockpitMaterial = this.createCockpitMaterial();
         const cockpit = new THREE.Mesh(cockpitGeometry, cockpitMaterial);
         cockpit.position.set(
             cockpitConfig.position.x * scale,
@@ -358,9 +361,7 @@ export class VehicleFactory {
             bodyConfig.height * scale, 
             bodyConfig.length * scale
         );
-        const bodyMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const bodyMaterial = this.createBodyMaterial(vehicleData.color);
         const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
         body.castShadow = true;
         vehicleGroup.add(body);
@@ -372,9 +373,7 @@ export class VehicleFactory {
             wingsConfig.height * scale, 
             wingsConfig.length * scale
         );
-        const wingMaterial = new THREE.MeshLambertMaterial({ 
-            color: vehicleData.color 
-        });
+        const wingMaterial = this.createBodyMaterial(vehicleData.color);
         const wings = new THREE.Mesh(wingGeometry, wingMaterial);
         wings.castShadow = true;
         vehicleGroup.add(wings);

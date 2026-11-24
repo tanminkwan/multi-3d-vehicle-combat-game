@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { InputManager } from './input/InputManager.js';
 import { NetworkManager } from './network/NetworkManager.js';
 import { UIManager } from './ui/UIManager.js';
@@ -7,6 +8,9 @@ import { CameraManager } from './camera/CameraManager.js';
 import { EffectManager } from './effects/EffectManager.js';
 import { VehicleFactory } from './entities/VehicleFactory.js';
 import { WorldManager } from './world/WorldManager.js';
+import { resolveGraphicsConfig } from './graphics/GraphicsPresetResolver.js';
+import { ProceduralTextureFactory } from './graphics/ProceduralTextureFactory.js';
+import { TerrainColorizer } from './graphics/TerrainColorizer.js';
 import { EFFECT_DEFAULTS, CANVAS_DEFAULTS, UI_COLORS } from './config/Constants.js';
 
 /**
@@ -67,9 +71,15 @@ export class GameClient {
         this.effectManager = null;
         this.vehicleFactory = null;
         this.worldManager = null;
+        this.graphicsConfig = resolveGraphicsConfig(gameData.config?.client);
+        this.textureFactory = null;
+        this.envRenderTarget = null;
         
-        // 시간 관리
+        // 시간 및 루프 생명주기 관리
         this.clock = new THREE.Clock();
+        this.isRunning = false;
+        this.animationFrameId = null;
+        this.boundOnWindowResize = () => this.onWindowResize();
     }
 
     /**
@@ -289,8 +299,18 @@ export class GameClient {
             return false;
         }
         
+        // 절차적 텍스처 팩토리 및 바이옴 컬러라이저 초기화 (DIP)
+        this.textureFactory = new ProceduralTextureFactory(this.graphicsConfig, {
+            createTexture: (canvas) => new THREE.CanvasTexture(canvas)
+        });
+        const terrainColorizer = new TerrainColorizer(this.graphicsConfig.biomes);
+
         // WorldManager 초기화 (scene이 생성된 후)
-        this.worldManager = new WorldManager(this.scene, this.config);
+        this.worldManager = new WorldManager(this.scene, this.config, {
+            graphicsConfig: this.graphicsConfig,
+            textureFactory: this.textureFactory,
+            terrainColorizer
+        });
         this.worldManager.createWorld();
         
         // CameraManager 초기화 (camera와 controls가 생성된 후)
@@ -300,7 +320,10 @@ export class GameClient {
         this.effectManager = new EffectManager(this.scene, this.config);
         
         // VehicleFactory 초기화 (scene이 생성된 후)
-        this.vehicleFactory = new VehicleFactory(this.scene, this.config);
+        this.vehicleFactory = new VehicleFactory(this.scene, this.config, {
+            graphicsConfig: this.graphicsConfig,
+            textureFactory: this.textureFactory
+        });
         
         // InputManager에 CameraManager 설정
         this.inputManager.setCameraManager(this.cameraManager);
@@ -313,6 +336,7 @@ export class GameClient {
         // 초기 게임 상태 적용
         this.updateGameState(this.gameData.gameState);
         
+        this.isRunning = true;
         this.animate();
         return true;
     }
@@ -327,9 +351,10 @@ export class GameClient {
             return false;
         }
 
-        // 씬 생성
+        // 씬 생성 (지평선 색상과 안개 통일)
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.Fog(0x87CEEB, 100, 1000);
+        const horizonColor = new THREE.Color(this.graphicsConfig.palette.skyHorizonColor);
+        this.scene.fog = new THREE.Fog(horizonColor, 140, 1100);
 
         // 카메라 설정 - 원래 게임과 동일
         this.camera = new THREE.PerspectiveCamera(
@@ -357,7 +382,9 @@ export class GameClient {
                 logarithmicDepthBuffer: false // 성능 최적화
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setClearColor(0x87CEEB);
+        this.renderer.setClearColor(horizonColor);
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = this.graphicsConfig.toneMappingExposure;
             
             // 그림자 설정 (config에서 가져오기)
             if (perfConfig.enableShadows !== false) {
@@ -417,7 +444,7 @@ export class GameClient {
         this.setupLighting();
 
         // 윈도우 리사이즈 처리
-        window.addEventListener('resize', () => this.onWindowResize());
+        window.addEventListener('resize', this.boundOnWindowResize);
         
         return true;
     }
@@ -508,8 +535,9 @@ export class GameClient {
      */
     setupLighting() {
         // 태양광
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(100, 100, 50);
+        const palette = this.graphicsConfig.palette;
+        const directionalLight = new THREE.DirectionalLight(0xfff7e8, palette.directionalLightIntensity);
+        directionalLight.position.set(120, 160, 80);
         
         const perfConfig = this.config?.client?.performance || {};
         const shadowsEnabled = perfConfig.enableShadows !== false && !perfConfig.lowPerformanceMode;
@@ -531,9 +559,25 @@ export class GameClient {
         }
         this.scene.add(directionalLight);
 
-        // 환경광
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
-        this.scene.add(ambientLight);
+        // 하늘/지면 반사광 (HemisphereLight)
+        const hemisphereLight = new THREE.HemisphereLight(
+            palette.hemisphereSkyColor,
+            palette.hemisphereGroundColor,
+            palette.hemisphereIntensity
+        );
+        this.scene.add(hemisphereLight);
+
+        // 경량 환경 반사맵 (RoomEnvironment + PMREMGenerator)
+        if (this.graphicsConfig.enableEnvironmentMap && this.renderer) {
+            try {
+                const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+                this.envRenderTarget = pmremGenerator.fromScene(new RoomEnvironment(), 0.04);
+                this.scene.environment = this.envRenderTarget.texture;
+                pmremGenerator.dispose();
+            } catch (error) {
+                console.warn('환경맵 초기화 건너뜀:', error);
+            }
+        }
     }
 
     /**
@@ -610,7 +654,8 @@ export class GameClient {
      * 애니메이션 루프 - 원래 게임과 동일
      */
     animate() {
-        requestAnimationFrame(() => this.animate());
+        if (!this.isRunning) return;
+        this.animationFrameId = requestAnimationFrame(() => this.animate());
         
         const deltaTime = Math.min(this.clock.getDelta(), 0.1);
         
@@ -642,16 +687,18 @@ export class GameClient {
             this.cameraManager.updateControls();
         }
         
-        // 구름 애니메이션 - WorldManager로 위임
+        // 구름 및 수면 애니메이션 - WorldManager로 위임
         if (this.worldManager) {
             this.worldManager.updateClouds();
+            this.worldManager.updateWater(deltaTime);
         }
         
         // 렌더링 통계 리셋 (성능 최적화)
         this.renderer.info.reset();
         
-        // 선물 상자 애니메이션
+        // 선물 상자 및 무적 비행체 깜빡임 애니메이션
         this.updateGiftBoxesAnimation(deltaTime);
+        this.updateInvulnerabilityVisuals();
         
         // 렌더링
         this.renderer.render(this.scene, this.camera);
@@ -1546,5 +1593,66 @@ export class GameClient {
                 giftBox.rotation.y += deltaTime * 0.3;
             }
         });
+    }
+
+    /**
+     * 리스폰 무적 상태 비행체의 시각적 보호(깜빡임) 효과 업데이트
+     */
+    updateInvulnerabilityVisuals() {
+        const elapsed = this.clock.getElapsedTime();
+        const blinkVisible = Math.sin(elapsed * 18) >= 0;
+
+        for (const vehicle of this.vehicles.values()) {
+            const data = vehicle.userData.vehicleData;
+            if (!data) continue;
+
+            if (data.isInvulnerable) {
+                const isSelfFirstPerson = vehicle === this.myVehicle && this.isFirstPerson;
+                vehicle.visible = !isSelfFirstPerson && blinkVisible;
+                vehicle.userData.wasInvulnerable = true;
+            } else if (vehicle.userData.wasInvulnerable) {
+                const isSelfFirstPerson = vehicle === this.myVehicle && this.isFirstPerson;
+                vehicle.visible = !isSelfFirstPerson && (data.visible !== false);
+                vehicle.userData.wasInvulnerable = false;
+            }
+        }
+    }
+
+    /**
+     * 게임 퇴장 시 모든 클라이언트 리소스 정리
+     */
+    cleanup() {
+        this.isRunning = false;
+        if (this.animationFrameId !== null) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+
+        window.removeEventListener('resize', this.boundOnWindowResize);
+
+        if (this.inputManager) this.inputManager.cleanup();
+        if (this.networkManager) this.networkManager.cleanup();
+        if (this.cameraManager) this.cameraManager.cleanup();
+        if (this.effectManager) this.effectManager.cleanup();
+        if (this.worldManager) this.worldManager.cleanup();
+        if (this.uiManager) this.uiManager.cleanup();
+        if (this.textureFactory) {
+            this.textureFactory.dispose();
+            this.textureFactory = null;
+        }
+        if (this.envRenderTarget) {
+            this.envRenderTarget.dispose();
+            this.envRenderTarget = null;
+        }
+        if (this.controls) this.controls.dispose();
+        if (this.renderer) this.renderer.dispose();
+
+        this.vehicles.clear();
+        this.bullets.clear();
+        this.explosions.clear();
+        this.billboards.clear();
+        this.giftBoxes.clear();
+        this.myVehicle = null;
+        this.latestGameState = null;
     }
 } 
