@@ -1,15 +1,17 @@
 import * as THREE from 'three';
+import { GunHitZoneEvaluator } from './GunHitZoneEvaluator.js';
 
 /**
- * 타겟팅 시스템 (타겟 탐색, 락온 관리 등)
+ * 타겟팅 시스템 (타겟 탐색, 락온 관리, 기관총 사정권 판별 등)
  * Liskov Substitution Principle을 고려하여 인터페이스 분리 가능
  */
 export class TargetingManager {
-    constructor(config, getTerrainHeightCallback) {
+    constructor(config, getTerrainHeightCallback, gunHitZoneEvaluator = null) {
         this.config = config.targeting;
         this.weaponConfig = config.weapons;
         this.getTerrainHeight = getTerrainHeightCallback;
         this.raycaster = new THREE.Raycaster();
+        this.gunHitZoneEvaluator = gunHitZoneEvaluator || new GunHitZoneEvaluator(config);
 
         // config에서 값을 가져오거나 기본값 설정
         this.lockOnTime = (this.config.lockOnTime || 2) * 1000; // ms
@@ -152,6 +154,14 @@ export class TargetingManager {
         
         // 3. 락온 진행도 업데이트
         this.updateLockOnProgress(player, currentLockOnTarget, vehicle, enemies, deltaTime);
+
+        // 4. 기관총 사정권(쏘면 맞추는) 타겟 판별
+        const gunTarget = this.gunHitZoneEvaluator.findGunTarget(
+            vehicle,
+            enemies,
+            (from, to, allEnemies) => this.hasObstacle(from, to, allEnemies)
+        );
+        player.gunTargetId = gunTarget ? gunTarget.id : null;
     }
 
     /**
@@ -327,6 +337,7 @@ export class TargetingManager {
     clearAllTargets(player) {
         player.awarenessTargetId = null;
         player.lockOnTargetId = null;
+        player.gunTargetId = null;
         this.resetLockOn(player);
     }
 

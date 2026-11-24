@@ -202,6 +202,7 @@ export class UIManager {
         if (!myPlayerData || !this.elements.targetingContainer) return;
 
         const visibleTargets = new Set();
+        const gunTargetId = myPlayerData.gunTargetId || null;
         
         // 1. 락온 타겟 처리
         if (myPlayerData.lockOnTargetId) {
@@ -212,7 +213,8 @@ export class UIManager {
                 if (lockOnState.isLocked) {
                     style = 'locked-on'; // 노란 실선
                 }
-                this.drawTargetBox(targetVehicle, style, camera, rendererDomElement);
+                const isGunInRange = myPlayerData.lockOnTargetId === gunTargetId;
+                this.drawTargetBox(targetVehicle, style, camera, rendererDomElement, isGunInRange);
                 visibleTargets.add(myPlayerData.lockOnTargetId);
             }
         }
@@ -221,12 +223,22 @@ export class UIManager {
         if (myPlayerData.awarenessTargetId && myPlayerData.awarenessTargetId !== myPlayerData.lockOnTargetId) {
             const targetVehicle = vehicles.get(myPlayerData.awarenessTargetId);
             if (targetVehicle) {
-                this.drawTargetBox(targetVehicle, 'awareness', camera, rendererDomElement);
+                const isGunInRange = myPlayerData.awarenessTargetId === gunTargetId;
+                this.drawTargetBox(targetVehicle, 'awareness', camera, rendererDomElement, isGunInRange);
                 visibleTargets.add(myPlayerData.awarenessTargetId);
             }
         }
+
+        // 3. 기관총 사정권 타겟이 아직 표시되지 않은 경우 초록 박스 + 외곽 번쩍임 표시
+        if (gunTargetId && !visibleTargets.has(gunTargetId)) {
+            const targetVehicle = vehicles.get(gunTargetId);
+            if (targetVehicle) {
+                this.drawTargetBox(targetVehicle, 'awareness', camera, rendererDomElement, true);
+                visibleTargets.add(gunTargetId);
+            }
+        }
         
-        // 3. 화면에서 사라진 타겟 박스 제거
+        // 4. 화면에서 사라진 타겟 박스 제거
         for (const [targetId, boxElement] of this.targetBoxes.entries()) {
             if (!visibleTargets.has(targetId)) {
                 boxElement.remove();
@@ -241,8 +253,9 @@ export class UIManager {
      * @param {string} style - 'awareness', 'lock-on-progress', 'locked-on'
      * @param {THREE.Camera} camera
      * @param {HTMLElement} rendererDomElement
+     * @param {boolean} [isGunInRange=false] - 기관총 사정권(쏘면 맞추는) 여부
      */
-    drawTargetBox(targetVehicle, style, camera, rendererDomElement) {
+    drawTargetBox(targetVehicle, style, camera, rendererDomElement, isGunInRange = false) {
         if (!targetVehicle || !targetVehicle.userData.vehicleData?.active || !targetVehicle.parent) {
             return;
         }
@@ -258,8 +271,9 @@ export class UIManager {
             this.targetBoxes.set(targetId, box);
         }
         
-        // 스타일 클래스 업데이트
-        box.className = `target-box ${style}`;
+        // 스타일 클래스 업데이트 (기관총 사정권이면 바깥쪽 번쩍임 클래스 추가)
+        box.className = `target-box ${style}${isGunInRange ? ' gun-in-range' : ''}`;
+        box.dataset.gunInRange = isGunInRange ? 'true' : 'false';
 
         const targetPosition = new THREE.Vector3();
         targetVehicle.getWorldPosition(targetPosition);

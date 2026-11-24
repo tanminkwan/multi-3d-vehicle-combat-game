@@ -403,6 +403,11 @@ targeting:
     - [100, 12]                      # 100m 이내, 12도
     - [150, 18]                      # 150m 이내, 18도
     - [200, 25]                      # 200m 이내, 25도
+  gunHitIndicator:                   # 기관총 사정권(쏘면 맞추는) 표시 설정
+    enabled: true
+    muzzleOffset: 8                  # MachineGun 총구 오프셋과 동일
+    hitRadius: 5.5                   # WeaponSystem 충돌 반경(5) 기준 판정 반경
+    defaultRange: 300                # 기본 사거리 폴백
 
 # NPC 플레이어 설정
 npc:

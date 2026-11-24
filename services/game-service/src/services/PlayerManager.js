@@ -45,6 +45,7 @@ export class PlayerManager {
             joinedAt: Date.now(),
             awarenessTargetId: null,
             lockOnTargetId: null,
+            gunTargetId: null,
             lockOnState: { isLocked: false, progress: 0 }
         };
 
