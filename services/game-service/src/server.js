@@ -9,6 +9,8 @@ import jwt from 'jsonwebtoken';
 
 import GameManager from './services/GameManager.js';
 import { createNpcRouter } from './routes/npcRoutes.js';
+import { resolveAuthConfig } from './auth/authConfig.js';
+import { createTokenVerifier } from './auth/createTokenVerifier.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,8 +106,11 @@ export function createGameServer(config, options = {}) {
         });
     }
 
-    // Socket.IO JWT 인증 미들웨어
-    io.use((socket, next) => {
+    const authConfig = options.authConfig || resolveAuthConfig(process.env);
+    const tokenVerifier = options.tokenVerifier || createTokenVerifier(authConfig);
+
+    // Socket.IO 인증 미들웨어 (TokenVerifier 포트 위임 - local / oidc 전환 가능)
+    io.use(async (socket, next) => {
         const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
 
         if (!token) {
@@ -113,31 +118,11 @@ export function createGameServer(config, options = {}) {
         }
 
         try {
-            const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-            const possibleSecrets = [
-                JWT_SECRET,
-                'your-super-secret-jwt-key-change-in-production',
-                'your-secret-key-change-in-production',
-                'your-secret-key-change-this',
-                'your-secret-key-here-change-in-production'
-            ];
-
-            let decoded = null;
-            for (const secret of possibleSecrets) {
-                try {
-                    decoded = jwt.verify(token, secret);
-                    break;
-                } catch {
-                    // try next fallback secret
-                }
-            }
-
-            if (!decoded) {
-                throw new Error('Token verification failed with all possible secrets');
-            }
-
-            socket.userId = decoded.userId;
-            socket.username = decoded.username;
+            const identity = await tokenVerifier.verify(token);
+            socket.userId = identity.userId;
+            socket.username = identity.username;
+            socket.isGuest = identity.isGuest;
+            socket.authClaims = identity.claims;
             next();
         } catch (error) {
             return next(new Error('Invalid authentication token'));
@@ -218,6 +203,10 @@ export function createGameServer(config, options = {}) {
             },
             weaponSystem: gameState.effects,
             npc: npcStatus,
+            auth: {
+                mode: authConfig.mode,
+                issuer: authConfig.mode === 'oidc' ? authConfig.oidc.issuer : null
+            },
             config: config
         });
     });

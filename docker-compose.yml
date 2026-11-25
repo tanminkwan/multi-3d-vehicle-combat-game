@@ -74,7 +74,12 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3001
+      AUTH_MODE: ${AUTH_MODE:-local}
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_JWKS_URI: ${OIDC_JWKS_URI:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      OIDC_USERNAME_CLAIM: ${OIDC_USERNAME_CLAIM:-preferred_username}
       ALLOW_EXTERNAL_ACCESS: false
     volumes:
       - ./services/game-service/src/config/game-config.yaml:/app/services/game-service/src/config/game-config.yaml:ro
