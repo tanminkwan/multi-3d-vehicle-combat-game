@@ -6,16 +6,33 @@ export class UserController {
   }
 
   /**
-   * 게스트 사용자 생성 (기존 joinGame 로직 대체)
+   * 공개 인증 정책 조회 (맛보기 모드 허용 여부 등)
+   */
+  getAuthConfig(req, res) {
+    return res.json({
+      success: true,
+      allowGuestMode: this.userService.isGuestModeAllowed()
+    });
+  }
+
+  /**
+   * 게스트 사용자 생성 (username 생략 시 guest1, guest2, guest3 순차 자동 발급)
    */
   async createGuest(req, res) {
     try {
+      if (!this.userService.isGuestModeAllowed()) {
+        return res.status(403).json({
+          success: false,
+          message: '맛보기(게스트) 모드가 비활성화되어 있습니다.'
+        });
+      }
+
       const schema = Joi.object({
-        username: Joi.string().alphanum().min(3).max(50).required(),
+        username: Joi.string().alphanum().min(3).max(50).optional(),
         vehicleType: Joi.string().valid('fighter', 'heavy').default('fighter')
       });
 
-      const { error, value } = schema.validate(req.body);
+      const { error, value } = schema.validate(req.body || {});
       if (error) {
         return res.status(400).json({
           success: false,
@@ -27,6 +44,10 @@ export class UserController {
         value.username, 
         value.vehicleType
       );
+
+      if (!result.success) {
+        return res.status(result.statusCode || 400).json(result);
+      }
 
       res.status(201).json(result);
     } catch (error) {

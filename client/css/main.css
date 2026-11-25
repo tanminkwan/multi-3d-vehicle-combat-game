@@ -158,6 +158,21 @@ body {
     background: rgba(255,255,255,0.3);
 }
 
+#loginForm .btn-guest {
+    background: linear-gradient(135deg, #ff9800, #f57c00);
+    color: white;
+    margin-top: 8px;
+}
+
+#loginForm .btn-guest:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.45);
+}
+
+#loginForm .btn-guest.hidden {
+    display: none;
+}
+
 #loginForm .error-message, #registerForm .error-message {
     background: rgba(244, 67, 54, 0.9);
     color: white;

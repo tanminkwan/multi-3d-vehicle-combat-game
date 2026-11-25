@@ -1,43 +1,73 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import { GuestNameAllocator } from './GuestNameAllocator.js';
 
 /**
  * 사용자 서비스 클래스
  * 데이터베이스 독립적인 비즈니스 로직 구현
  */
 export class UserService {
-  constructor(userRepository, config) {
+  constructor(userRepository, config, guestNameAllocator = null) {
     this.userRepository = userRepository;
     this.config = config;
+    this.guestNameAllocator = guestNameAllocator || new GuestNameAllocator(userRepository, 'guest');
   }
 
   /**
-   * 게스트 사용자 생성 (기존 시스템과 호환)
+   * 맛보기(게스트) 모드 허용 여부 반환
    */
-  async createGuestUser(username, vehicleType = 'fighter') {
-    try {
-      const user = await this.userRepository.create({
-        username: username,
-        isGuest: true,
-        preferredVehicleType: vehicleType
-      });
+  isGuestModeAllowed() {
+    return this.config?.allowGuestMode !== false;
+  }
 
-      const token = this.generateToken(user);
-      
+  /**
+   * 게스트 사용자 생성 (username 미지정 시 guest1, guest2, guest3 순차 자동 발급)
+   */
+  async createGuestUser(username = null, vehicleType = 'fighter', maxRetries = 20) {
+    if (!this.isGuestModeAllowed()) {
       return {
-        success: true,
-        user: this.sanitizeUser(user),
-        token
+        success: false,
+        statusCode: 403,
+        message: '맛보기(게스트) 모드가 비활성화되어 있습니다.'
       };
-    } catch (error) {
-      if (error.name === 'SequelizeUniqueConstraintError') {
-        // 중복 사용자명인 경우 랜덤 접미사 추가
-        const randomSuffix = Math.floor(Math.random() * 1000);
-        return this.createGuestUser(`${username}_${randomSuffix}`, vehicleType);
-      }
-      throw error;
     }
+
+    const autoAllocate = !username || !String(username).trim();
+    let candidateName = autoAllocate
+      ? await this.guestNameAllocator.allocateNextName()
+      : String(username).trim();
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const user = await this.userRepository.create({
+          username: candidateName,
+          isGuest: true,
+          preferredVehicleType: vehicleType
+        });
+
+        const token = this.generateToken(user);
+
+        return {
+          success: true,
+          user: this.sanitizeUser(user),
+          token
+        };
+      } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+          if (autoAllocate) {
+            candidateName = await this.guestNameAllocator.allocateNextName();
+          } else {
+            const randomSuffix = Math.floor(Math.random() * 1000);
+            candidateName = `${String(username).trim()}${randomSuffix}`;
+          }
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error('Failed to allocate unique guest username after retries');
   }
 
   /**

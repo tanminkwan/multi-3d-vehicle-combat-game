@@ -10,6 +10,7 @@ import { UserModel, UserRepository } from './models/User.js';
 import { UserService } from './services/UserService.js';
 import { UserController } from './controllers/UserController.js';
 import { createUserRoutes } from './routes/userRoutes.js';
+import { parseAllowGuestMode } from './config/guestModeConfig.js';
 
 // 환경변수 로드
 dotenv.config();
@@ -24,7 +25,8 @@ app.set('trust proxy', 1); // nginx가 첫 번째 프록시이므로 1로 설정
 const config = {
   jwtSecret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
   jwtExpiry: process.env.JWT_EXPIRY || '24h',
-  nodeEnv: process.env.NODE_ENV || 'development'
+  nodeEnv: process.env.NODE_ENV || 'development',
+  allowGuestMode: parseAllowGuestMode(process.env.ALLOW_GUEST_MODE, true)
 };
 
 // 미들웨어 설정

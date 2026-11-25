@@ -5,6 +5,7 @@ export const createUserRoutes = (userController, userService) => {
   const router = express.Router();
 
   // 공개 엔드포인트 (인증 불필요)
+  router.get('/auth-config', userController.getAuthConfig.bind(userController));
   router.post('/guest', userController.createGuest.bind(userController));
   router.post('/register', userController.register.bind(userController));
   router.post('/login', userController.login.bind(userController));

@@ -1,4 +1,4 @@
-import { DataTypes } from 'sequelize';
+import { DataTypes, Op } from 'sequelize';
 
 /**
  * 사용자 모델 정의
@@ -148,6 +148,22 @@ export class UserRepository {
    */
   async findByUsername(username) {
     return await this.User.findOne({ where: { username } });
+  }
+
+  /**
+   * 특정 접두사로 시작하는 사용자명 목록 조회 (순차 게스트 이름 할당용)
+   */
+  async findUsernamesByPrefix(prefix) {
+    const rows = await this.User.findAll({
+      attributes: ['username'],
+      where: {
+        username: {
+          [Op.iLike]: `${prefix}%`
+        }
+      },
+      raw: true
+    });
+    return rows.map((row) => row.username);
   }
 
   /**

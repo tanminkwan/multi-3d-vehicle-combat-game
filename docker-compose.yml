@@ -47,6 +47,7 @@ services:
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       JWT_EXPIRY: 24h
       ALLOW_EXTERNAL_ACCESS: false
+      ALLOW_GUEST_MODE: ${ALLOW_GUEST_MODE:-true}
     # ports:
     #   - "3002:3002"
     healthcheck:

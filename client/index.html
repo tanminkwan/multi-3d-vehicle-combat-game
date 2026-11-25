@@ -29,10 +29,7 @@
                 
                 <button type="button" class="btn-primary" onclick="performLogin()">🔑 로그인</button>
                 <button type="button" class="btn-secondary" onclick="showRegisterScreen()">👤 회원가입</button>
-                
-                <div style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
-                    <p>테스트 계정: testuser / password123</p>
-                </div>
+                <button type="button" id="guestLoginBtn" class="btn-guest hidden" onclick="performGuestLogin()">🎮 맛보기 (게스트 참여)</button>
             </div>
         </div>
 
@@ -352,6 +349,66 @@
                 showError('로그인 중 오류가 발생했습니다.');
             }
         }
+
+        // 공개 인증 설정 로드 (맛보기 모드 허용 여부 확인)
+        async function loadAuthConfig() {
+            const guestBtn = document.getElementById('guestLoginBtn');
+            if (!guestBtn) return;
+
+            try {
+                const response = await fetch('/api/auth/users/auth-config');
+                if (!response.ok) {
+                    guestBtn.classList.add('hidden');
+                    return;
+                }
+                const data = await response.json();
+                if (data.success && data.allowGuestMode === true) {
+                    guestBtn.classList.remove('hidden');
+                } else {
+                    guestBtn.classList.add('hidden');
+                }
+            } catch (error) {
+                console.warn('인증 설정 조회 실패:', error);
+                guestBtn.classList.add('hidden');
+            }
+        }
+
+        // 맛보기(게스트) 로그인 수행 - 회원가입 없이 guest1, guest2, guest3 ... 자동 발급
+        async function performGuestLogin() {
+            const guestBtn = document.getElementById('guestLoginBtn');
+            if (guestBtn) guestBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/auth/users/guest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.token && data.user) {
+                    jwtToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('jwtToken', jwtToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+                    showSuccess(`${currentUser.username}(으)로 맛보기 입장합니다!`);
+                    setTimeout(() => {
+                        showVehicleSelection();
+                    }, 500);
+                } else {
+                    showError(data.message || '맛보기 입장에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('맛보기 로그인 오류:', error);
+                showError('맛보기 입장 중 오류가 발생했습니다.');
+            } finally {
+                if (guestBtn) guestBtn.disabled = false;
+            }
+        }
         
         // 차량 선택 화면 표시
         function showVehicleSelection() {
@@ -384,6 +441,7 @@
             document.getElementById('playerName').value = '';
             
             showScreen('loginScreen');
+            loadAuthConfig();
             showMessage('로그아웃되었습니다.');
         }
         
@@ -811,6 +869,7 @@
             
             // 토큰이 없거나 유효하지 않으면 로그인 화면 표시
             showScreen('loginScreen');
+            loadAuthConfig();
             
             // 로그인 폼 Enter 키 지원
             document.getElementById('loginUsername').addEventListener('keypress', function(e) {
