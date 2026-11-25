@@ -473,16 +473,11 @@ npm install
 ## 🔧 배포
 
 ### Docker 배포 (권장)
+- **Red Hat (RHEL) + 사내 HTTP Proxy 환경 E2E 설치·배포 가이드**: [docs/RHEL_DOCKER_PROXY_DEPLOY_GUIDE.md](docs/RHEL_DOCKER_PROXY_DEPLOY_GUIDE.md) (`git clone` → Docker/프록시/SELinux/방화벽 설정 → 빌드·기동 → E2E 검증)
+
 ```bash
-# 각 서비스별 Docker 이미지 빌드
-cd services/user-service
-docker build -t user-service .
-
-cd ../game-service
-docker build -t game-service .
-
-# Docker Compose로 전체 시스템 실행
-docker-compose up -d
+# Docker Compose로 전체 시스템 빌드 및 실행 (운영 모드)
+docker compose -f docker-compose.yml up -d --build
 ```
 
 ### 수동 배포
