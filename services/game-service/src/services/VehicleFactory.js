@@ -12,6 +12,7 @@ export class VehicleFactory {
         // 기본 비행체 타입들 등록
         this.registerVehicleType('fighter', this.createFighter.bind(this));
         this.registerVehicleType('heavy', this.createHeavy.bind(this));
+        this.registerVehicleType('biplane', this.createBiplane.bind(this));
         this.registerVehicleType('test', this.createTest.bind(this));
     }
 
@@ -55,6 +56,17 @@ export class VehicleFactory {
         return new Vehicle(id, playerId, spawnPosition, {
             ...options,
             vehicleType: 'heavy',
+            config: this.config
+        });
+    }
+
+    /**
+     * 쌍엽기 생성
+     */
+    createBiplane(id, playerId, spawnPosition, options) {
+        return new Vehicle(id, playerId, spawnPosition, {
+            ...options,
+            vehicleType: 'biplane',
             config: this.config
         });
     }

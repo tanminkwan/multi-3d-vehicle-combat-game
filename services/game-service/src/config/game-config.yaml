@@ -228,6 +228,79 @@ vehicles:
           - { x: -3, y: 0, z: -5.5 } # 좌측 글로우
           - { x: 3, y: 0, z: -5.5 }  # 우측 글로우
 
+  biplane:                           # 쌍엽기 설정 (전투기 대비 약간 느리고 약간 높은 체력)
+    maxSpeed: 50                     # 최대 속도 (전투기 60보다 약간 느림)
+    acceleration: 24                 # 가속도 (전투기 30보다 약간 느림)
+    turnSpeed: 0.65                  # 회전 속도
+    rollSpeed: 0.55                  # 롤 속도
+    pitchSpeed: 0.55                 # 피치 속도
+    yawSpeed: 0.55                   # 요 속도
+    health: 105                      # 기본 체력 (전투기 80보다 높음, 유저 2배 시 210)
+    fireRate: 11                     # 초당 발사 수
+    bulletDamage: 9                  # 총알 데미지 (유저 2배 시 18)
+    bulletSpeed: 210                 # 총알 속도
+    bulletRange: 310                 # 총알 사거리
+    scale: 1.0                       # 모델 크기 배율
+    engineType: "propeller"          # 엔진 타입 (프로펠러)
+    engineColor: "#FFCC33"           # 배기/엔진 색상
+    glowColor: "#FF9900"             # 글로우 색상
+    missileCount: 4                  # 미사일 개수
+    missileReloadTime: 25            # 미사일 재장전 시간 (초)
+    model:                           # 쌍엽기 3D 모델 상세 설정
+      body:
+        width: 1.8
+        height: 1.4
+        length: 7.2
+      nose:
+        radiusTop: 0.65
+        radiusBottom: 1.05
+        length: 2.2
+        z: 4.2
+      upperWing:
+        width: 13.0
+        height: 0.35
+        length: 2.4
+        y: 1.65
+        z: 1.0
+      lowerWing:
+        width: 11.6
+        height: 0.35
+        length: 2.2
+        y: -0.55
+        z: 0.6
+      strut:
+        radius: 0.1
+        height: 2.2
+        xPositions: [-4.6, -2.2, 2.2, 4.6]
+        z: 0.8
+      propeller:
+        bladeLength: 3.4
+        bladeWidth: 0.32
+        bladeThickness: 0.08
+        spinnerRadius: 0.38
+        z: 5.45
+      cockpit:
+        radius: 0.85
+        position: { x: 0, y: 0.95, z: -0.6 }
+      tailHorizontal:
+        width: 4.6
+        height: 0.25
+        length: 1.5
+        y: 0.3
+        z: -3.8
+      tailVertical:
+        width: 0.28
+        height: 2.0
+        length: 1.8
+        y: 1.15
+        z: -3.7
+      landingGear:
+        wheelRadius: 0.55
+        wheelWidth: 0.28
+        xOffset: 1.4
+        y: -1.65
+        z: 1.4
+
   test:                              # 테스트기 설정 (Vehicle.js 기본값의 절반으로 외부화)
     maxSpeed: 50                     # 최대 속도 (100 -> 50)
     acceleration: 30                 # 가속도 (60 -> 30)

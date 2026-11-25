@@ -696,9 +696,10 @@ export class GameClient {
         // 렌더링 통계 리셋 (성능 최적화)
         this.renderer.info.reset();
         
-        // 선물 상자 및 무적 비행체 깜빡임 애니메이션
+        // 선물 상자 및 무적 비행체 깜빡임, 쌍엽기 프로펠러 회전 애니메이션
         this.updateGiftBoxesAnimation(deltaTime);
         this.updateInvulnerabilityVisuals();
+        this.updateVehiclePropellers(deltaTime);
         
         // 렌더링
         this.renderer.render(this.scene, this.camera);
@@ -1615,6 +1616,19 @@ export class GameClient {
                 vehicle.visible = !isSelfFirstPerson && (data.visible !== false);
                 vehicle.userData.wasInvulnerable = false;
             }
+        }
+    }
+
+    /**
+     * 쌍엽기 등 프로펠러 탑재 비행체의 프로펠러 회전 애니메이션 업데이트
+     */
+    updateVehiclePropellers(deltaTime) {
+        for (const [, vehicle] of this.vehicles) {
+            const propeller = vehicle?.userData?.propeller;
+            if (!propeller) continue;
+            const isBoosting = vehicle === this.myVehicle && this.inputs?.thrust > 0;
+            const spinSpeed = isBoosting ? 36 : 22;
+            propeller.rotation.z += spinSpeed * deltaTime;
         }
     }
 
