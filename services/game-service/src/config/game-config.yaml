@@ -5,7 +5,7 @@
 game:
   name: "Multiplayer Vehicle Combat"  # 게임 이름
   version: "1.0.0"                   # 게임 버전
-  maxPlayers: 8                      # 최대 플레이어 수
+  maxPlayers: 4                      # 최대 플레이어 수
   minPlayersToStart: 1               # 게임 시작에 필요한 최소 플레이어 수
   gameMode: "deathmatch"             # 게임 모드 (deathmatch, team, etc.)
   respawnTime: 5000                  # 리스폰 시간 (밀리초) - 5초로 변경
@@ -300,6 +300,81 @@ vehicles:
         xOffset: 1.4
         y: -1.65
         z: 1.4
+
+  helicopter:                        # 헬리콥터 설정 (미사일 12발, 쌍엽기 속도, 전투기 체력)
+    maxSpeed: 50                     # 최대 속도 (쌍엽기와 동일)
+    acceleration: 24                 # 가속도 (쌍엽기와 동일)
+    turnSpeed: 0.7                   # 회전 속도
+    rollSpeed: 0.55                  # 롤 속도
+    pitchSpeed: 0.55                 # 피치 속도
+    yawSpeed: 0.7                    # 요 속도
+    health: 80                       # 기본 체력 (전투기와 동일, 유저 2배 시 160)
+    fireRate: 10                     # 초당 발사 수
+    bulletDamage: 8                  # 총알 데미지 (유저 2배 시 16)
+    bulletSpeed: 210                 # 총알 속도
+    bulletRange: 300                 # 총알 사거리
+    scale: 1.0                       # 모델 크기 배율
+    engineType: "rotor"              # 엔진 타입 (로터)
+    engineColor: "#00E5FF"           # 터빈 배기 색상
+    glowColor: "#0099CC"             # 글로우 색상
+    missileCount: 12                 # 미사일 기본 12발
+    missileReloadTime: 25            # 미사일 재장전 시간 (초)
+    model:                           # 공격 헬리콥터 3D 모델 상세 설정
+      body:
+        width: 2.2
+        height: 1.8
+        length: 6.4
+      nose:
+        radius: 1.1
+        length: 2.2
+        z: 3.6
+      cockpit:
+        radius: 1.15
+        position: { x: 0, y: 0.85, z: 1.4 }
+      tailBoom:
+        radiusTop: 0.28
+        radiusBottom: 0.55
+        length: 6.2
+        y: 0.3
+        z: -5.8
+      tailFin:
+        width: 0.25
+        height: 2.1
+        length: 1.4
+        y: 1.1
+        z: -8.6
+      mainRotor:
+        mastHeight: 1.1
+        bladeLength: 12.6
+        bladeWidth: 0.36
+        bladeThickness: 0.07
+        y: 2.05
+        z: 0.2
+      tailRotor:
+        bladeLength: 2.2
+        bladeWidth: 0.22
+        bladeThickness: 0.06
+        x: 0.35
+        y: 1.2
+        z: -8.6
+      stubWing:
+        width: 6.2
+        height: 0.28
+        length: 1.4
+        y: -0.1
+        z: 0.4
+      missilePod:
+        radius: 0.48
+        length: 2.0
+        xOffset: 2.4
+        y: -0.5
+        z: 0.5
+      skid:
+        length: 5.6
+        radius: 0.1
+        xOffset: 1.35
+        y: -1.6
+        z: 0.3
 
   test:                              # 테스트기 설정 (Vehicle.js 기본값의 절반으로 외부화)
     maxSpeed: 50                     # 최대 속도 (100 -> 50)

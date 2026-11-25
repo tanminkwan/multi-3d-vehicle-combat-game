@@ -55,6 +55,7 @@ export class VehicleFactory {
         this.vehicleCreators.set('fighter', this.createFighterVehicleModel.bind(this));
         this.vehicleCreators.set('heavy', this.createHeavyVehicleModel.bind(this));
         this.vehicleCreators.set('biplane', this.createBiplaneVehicleModel.bind(this));
+        this.vehicleCreators.set('helicopter', this.createHelicopterVehicleModel.bind(this));
         this.vehicleCreators.set('test', this.createTestVehicleModel.bind(this));
     }
     
@@ -593,7 +594,188 @@ export class VehicleFactory {
         vehicleGroup.userData.glow = glow;
         vehicleGroup.userData.propeller = propellerGroup;
     }
-    
+
+    /**
+     * 공격 헬리콥터(Helicopter) 3D 모델 생성
+     * 메인 4엽 로터(Y축 회전), 테일 붐 + 테일 로터(X축 회전), 무장 스텁 윙 + 미사일 포드, 스키드 랜딩기어 포함
+     */
+    createHelicopterVehicleModel(vehicleGroup, vehicleData) {
+        const cfg = this.config?.vehicles?.helicopter || {};
+        const m = cfg.model || {};
+        const scale = cfg.scale || 1.0;
+        const engineColor = cfg.engineColor || '#00E5FF';
+        const glowColor = cfg.glowColor || '#0099CC';
+
+        const bodyMaterial = this.createBodyMaterial(vehicleData.color);
+        const darkMetalMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2b3038,
+            metalness: 0.72,
+            roughness: 0.35
+        });
+        const podMaterial = new THREE.MeshStandardMaterial({
+            color: 0x454c57,
+            metalness: 0.65,
+            roughness: 0.4
+        });
+
+        // 1. 메인 동체
+        const bodyCfg = m.body || { width: 2.2, height: 1.8, length: 6.4 };
+        const body = new THREE.Mesh(
+            new THREE.BoxGeometry(bodyCfg.width * scale, bodyCfg.height * scale, bodyCfg.length * scale),
+            bodyMaterial
+        );
+        body.castShadow = true;
+        vehicleGroup.add(body);
+
+        // 2. 전방 기수 (+Z)
+        const noseCfg = m.nose || { radius: 1.1, length: 2.2, z: 3.6 };
+        const nose = new THREE.Mesh(
+            new THREE.ConeGeometry(noseCfg.radius * scale, noseCfg.length * scale, 10),
+            bodyMaterial
+        );
+        nose.rotation.x = Math.PI / 2;
+        nose.position.z = noseCfg.z * scale;
+        nose.castShadow = true;
+        vehicleGroup.add(nose);
+
+        // 3. 조종석 캐노피
+        const cockpitCfg = m.cockpit || { radius: 1.15, position: { x: 0, y: 0.85, z: 1.4 } };
+        const cockpit = new THREE.Mesh(
+            new THREE.SphereGeometry(cockpitCfg.radius * scale, 12, 10),
+            this.createCockpitMaterial()
+        );
+        cockpit.scale.set(0.95, 0.75, 1.35);
+        cockpit.position.set(
+            cockpitCfg.position.x * scale,
+            cockpitCfg.position.y * scale,
+            cockpitCfg.position.z * scale
+        );
+        vehicleGroup.add(cockpit);
+
+        // 4. 테일 붐 (-Z 방향)
+        const boomCfg = m.tailBoom || { radiusTop: 0.28, radiusBottom: 0.55, length: 6.2, y: 0.3, z: -5.8 };
+        const tailBoom = new THREE.Mesh(
+            new THREE.CylinderGeometry(boomCfg.radiusTop * scale, boomCfg.radiusBottom * scale, boomCfg.length * scale, 10),
+            bodyMaterial
+        );
+        tailBoom.rotation.x = -Math.PI / 2;
+        tailBoom.position.set(0, boomCfg.y * scale, boomCfg.z * scale);
+        tailBoom.castShadow = true;
+        vehicleGroup.add(tailBoom);
+
+        // 5. 수직 꼬리 핀
+        const finCfg = m.tailFin || { width: 0.25, height: 2.1, length: 1.4, y: 1.1, z: -8.6 };
+        const tailFin = new THREE.Mesh(
+            new THREE.BoxGeometry(finCfg.width * scale, finCfg.height * scale, finCfg.length * scale),
+            bodyMaterial
+        );
+        tailFin.position.set(0, finCfg.y * scale, finCfg.z * scale);
+        tailFin.castShadow = true;
+        vehicleGroup.add(tailFin);
+
+        // 6. 좌우 무장 스텁 윙 + 미사일 포드 (12발 콘셉트)
+        const wingCfg = m.stubWing || { width: 6.2, height: 0.28, length: 1.4, y: -0.1, z: 0.4 };
+        const stubWing = new THREE.Mesh(
+            new THREE.BoxGeometry(wingCfg.width * scale, wingCfg.height * scale, wingCfg.length * scale),
+            bodyMaterial
+        );
+        stubWing.position.set(0, wingCfg.y * scale, wingCfg.z * scale);
+        stubWing.castShadow = true;
+        vehicleGroup.add(stubWing);
+
+        const podCfg = m.missilePod || { radius: 0.48, length: 2.0, xOffset: 2.4, y: -0.5, z: 0.5 };
+        const podGeo = new THREE.CylinderGeometry(podCfg.radius * scale, podCfg.radius * scale, podCfg.length * scale, 10);
+        for (const side of [-1, 1]) {
+            const pod = new THREE.Mesh(podGeo, podMaterial);
+            pod.rotation.x = Math.PI / 2;
+            pod.position.set(side * podCfg.xOffset * scale, podCfg.y * scale, podCfg.z * scale);
+            pod.castShadow = true;
+            vehicleGroup.add(pod);
+        }
+
+        // 7. 하단 스키드 랜딩기어
+        const skidCfg = m.skid || { length: 5.6, radius: 0.1, xOffset: 1.35, y: -1.6, z: 0.3 };
+        const skidGeo = new THREE.CylinderGeometry(skidCfg.radius * scale, skidCfg.radius * scale, skidCfg.length * scale, 8);
+        const strutGeo = new THREE.CylinderGeometry(0.07 * scale, 0.07 * scale, 1.0 * scale, 6);
+        for (const side of [-1, 1]) {
+            const skid = new THREE.Mesh(skidGeo, darkMetalMaterial);
+            skid.rotation.x = Math.PI / 2;
+            skid.position.set(side * skidCfg.xOffset * scale, skidCfg.y * scale, skidCfg.z * scale);
+            vehicleGroup.add(skid);
+
+            for (const zOff of [-1.2, 1.4]) {
+                const strut = new THREE.Mesh(strutGeo, darkMetalMaterial);
+                strut.position.set(side * (skidCfg.xOffset * 0.85) * scale, (skidCfg.y + 0.5) * scale, (skidCfg.z + zOff) * scale);
+                strut.rotation.z = side * 0.25;
+                vehicleGroup.add(strut);
+            }
+        }
+
+        // 8. 상단 메인 로터 (4엽 십자 블레이드, Y축 고속 회전)
+        const rotorCfg = m.mainRotor || { mastHeight: 1.1, bladeLength: 12.6, bladeWidth: 0.36, bladeThickness: 0.07, y: 2.05, z: 0.2 };
+        const mast = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.22 * scale, 0.28 * scale, rotorCfg.mastHeight * scale, 8),
+            darkMetalMaterial
+        );
+        mast.position.set(0, (rotorCfg.y - rotorCfg.mastHeight * 0.5) * scale, rotorCfg.z * scale);
+        vehicleGroup.add(mast);
+
+        const mainRotorGroup = new THREE.Group();
+        mainRotorGroup.position.set(0, rotorCfg.y * scale, rotorCfg.z * scale);
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.42 * scale, 0.42 * scale, 0.28 * scale, 10), darkMetalMaterial);
+        mainRotorGroup.add(hub);
+
+        const blade1 = new THREE.Mesh(
+            new THREE.BoxGeometry(rotorCfg.bladeLength * scale, rotorCfg.bladeThickness * scale, rotorCfg.bladeWidth * scale),
+            darkMetalMaterial
+        );
+        const blade2 = new THREE.Mesh(
+            new THREE.BoxGeometry(rotorCfg.bladeWidth * scale, rotorCfg.bladeThickness * scale, rotorCfg.bladeLength * scale),
+            darkMetalMaterial
+        );
+        mainRotorGroup.add(blade1);
+        mainRotorGroup.add(blade2);
+        vehicleGroup.add(mainRotorGroup);
+
+        // 9. 테일 로터 (X축 고속 회전)
+        const tailRotorCfg = m.tailRotor || { bladeLength: 2.2, bladeWidth: 0.22, bladeThickness: 0.06, x: 0.35, y: 1.2, z: -8.6 };
+        const tailRotorGroup = new THREE.Group();
+        tailRotorGroup.position.set(tailRotorCfg.x * scale, tailRotorCfg.y * scale, tailRotorCfg.z * scale);
+        const tBlade1 = new THREE.Mesh(
+            new THREE.BoxGeometry(tailRotorCfg.bladeThickness * scale, tailRotorCfg.bladeLength * scale, tailRotorCfg.bladeWidth * scale),
+            darkMetalMaterial
+        );
+        const tBlade2 = new THREE.Mesh(
+            new THREE.BoxGeometry(tailRotorCfg.bladeThickness * scale, tailRotorCfg.bladeWidth * scale, tailRotorCfg.bladeLength * scale),
+            darkMetalMaterial
+        );
+        tailRotorGroup.add(tBlade1);
+        tailRotorGroup.add(tBlade2);
+        vehicleGroup.add(tailRotorGroup);
+
+        // 10. 후방 터빈 배기/부스터 글로우 (EffectManager.updateVehicleBooster 호환)
+        const engine = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.55 * scale, 0.55 * scale, 0.35 * scale, 10),
+            new THREE.MeshBasicMaterial({ color: engineColor, transparent: true, opacity: MATERIAL_OPACITY.FIGHTER_ENGINE })
+        );
+        engine.position.set(0, 0.45 * scale, -3.2 * scale);
+        engine.rotation.x = Math.PI / 2;
+        vehicleGroup.add(engine);
+
+        const glow = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.0 * scale, 1.0 * scale, 0.2 * scale, 10),
+            new THREE.MeshBasicMaterial({ color: glowColor, transparent: true, opacity: MATERIAL_OPACITY.FIGHTER_GLOW })
+        );
+        glow.position.set(0, 0.45 * scale, -3.5 * scale);
+        glow.rotation.x = Math.PI / 2;
+        vehicleGroup.add(glow);
+
+        vehicleGroup.userData.engine = engine;
+        vehicleGroup.userData.glow = glow;
+        vehicleGroup.userData.mainRotor = mainRotorGroup;
+        vehicleGroup.userData.tailRotor = tailRotorGroup;
+    }
+
     /**
      * 새로운 비행체 타입 등록 (확장성)
      */

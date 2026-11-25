@@ -13,6 +13,7 @@ export class VehicleFactory {
         this.registerVehicleType('fighter', this.createFighter.bind(this));
         this.registerVehicleType('heavy', this.createHeavy.bind(this));
         this.registerVehicleType('biplane', this.createBiplane.bind(this));
+        this.registerVehicleType('helicopter', this.createHelicopter.bind(this));
         this.registerVehicleType('test', this.createTest.bind(this));
     }
 
@@ -67,6 +68,17 @@ export class VehicleFactory {
         return new Vehicle(id, playerId, spawnPosition, {
             ...options,
             vehicleType: 'biplane',
+            config: this.config
+        });
+    }
+
+    /**
+     * 헬리콥터 생성
+     */
+    createHelicopter(id, playerId, spawnPosition, options) {
+        return new Vehicle(id, playerId, spawnPosition, {
+            ...options,
+            vehicleType: 'helicopter',
             config: this.config
         });
     }

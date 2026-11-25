@@ -143,6 +143,21 @@
                             <div style="font-weight: bold;">쌍엽기</div>
                             <div style="font-size: 12px; margin-top: 5px;">안정적·튼튼<br>체력: 210</div>
                         </button>
+                        <button id="helicopterBtn" class="vehicle-select-btn" onclick="selectVehicle('helicopter')" style="
+                            padding: 15px 20px;
+                            border: 3px solid #666;
+                            border-radius: 10px;
+                            background: rgba(255, 255, 255, 0.1);
+                            color: white;
+                            cursor: pointer;
+                            transition: all 0.3s;
+                            min-width: 150px;
+                            text-align: center;
+                        ">
+                            <div style="font-size: 24px; margin-bottom: 5px;">🚁</div>
+                            <div style="font-weight: bold;">헬리콥터</div>
+                            <div style="font-size: 12px; margin-top: 5px;">미사일 12발<br>체력: 160</div>
+                        </button>
                         <button id="testBtn" class="vehicle-select-btn" onclick="selectVehicle('test')" style="
                             padding: 15px 20px;
                             border: 3px solid #666;
@@ -574,7 +589,7 @@
             selectedVehicleType = vehicleType;
             
             // 모든 버튼 스타일 초기화
-            ['fighterBtn', 'heavyBtn', 'biplaneBtn', 'testBtn'].forEach(btnId => {
+            ['fighterBtn', 'heavyBtn', 'biplaneBtn', 'helicopterBtn', 'testBtn'].forEach(btnId => {
                 const btn = document.getElementById(btnId);
                 if (btn) {
                     btn.style.border = '3px solid #666';
@@ -592,6 +607,9 @@
             } else if (vehicleType === 'biplane') {
                 document.getElementById('biplaneBtn').style.border = '3px solid #00BCD4';
                 document.getElementById('biplaneBtn').style.background = 'rgba(0, 188, 212, 0.2)';
+            } else if (vehicleType === 'helicopter') {
+                document.getElementById('helicopterBtn').style.border = '3px solid #AB47BC';
+                document.getElementById('helicopterBtn').style.background = 'rgba(171, 71, 188, 0.25)';
             } else {
                 document.getElementById('testBtn').style.border = '3px solid #FF9800';
                 document.getElementById('testBtn').style.background = 'rgba(255, 152, 0, 0.2)';

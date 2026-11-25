@@ -1621,15 +1621,23 @@ export class GameClient {
     }
 
     /**
-     * 쌍엽기 등 프로펠러 탑재 비행체의 프로펠러 회전 애니메이션 업데이트
+     * 쌍엽기 프로펠러 및 헬리콥터 메인/테일 로터 회전 애니메이션 업데이트
      */
     updateVehiclePropellers(deltaTime) {
         for (const [, vehicle] of this.vehicles) {
-            const propeller = vehicle?.userData?.propeller;
-            if (!propeller) continue;
             const isBoosting = vehicle === this.myVehicle && this.inputs?.thrust > 0;
-            const spinSpeed = isBoosting ? 36 : 22;
-            propeller.rotation.z += spinSpeed * deltaTime;
+            const propeller = vehicle?.userData?.propeller;
+            if (propeller) {
+                propeller.rotation.z += (isBoosting ? 36 : 22) * deltaTime;
+            }
+            const mainRotor = vehicle?.userData?.mainRotor;
+            if (mainRotor) {
+                mainRotor.rotation.y += (isBoosting ? 28 : 18) * deltaTime;
+            }
+            const tailRotor = vehicle?.userData?.tailRotor;
+            if (tailRotor) {
+                tailRotor.rotation.x += (isBoosting ? 42 : 28) * deltaTime;
+            }
         }
     }
 
