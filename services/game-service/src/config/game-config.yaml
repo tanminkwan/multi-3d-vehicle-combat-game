@@ -482,6 +482,7 @@ targeting:
     enabled: true
     muzzleOffset: 8                  # MachineGun 총구 오프셋과 동일
     hitRadius: 5.5                   # WeaponSystem 충돌 반경(5) 기준 판정 반경
+    giftBoxHitRadius: 5.5            # 선물 상자 기관총 사정권 판정 반경
     defaultRange: 300                # 기본 사거리 폴백
 
 # NPC 플레이어 설정

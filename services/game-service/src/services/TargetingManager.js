@@ -118,7 +118,7 @@ export class TargetingManager {
      * @param {Array<Vehicle>} enemies - 모든 적 비행체 배열
      * @param {number} deltaTime - 델타 타임
      */
-    update(player, vehicle, enemies, deltaTime) {
+    update(player, vehicle, enemies, deltaTime, giftBoxes = []) {
         if (!vehicle || !vehicle.active) {
             this.clearAllTargets(player);
             return;
@@ -155,13 +155,17 @@ export class TargetingManager {
         // 3. 락온 진행도 업데이트
         this.updateLockOnProgress(player, currentLockOnTarget, vehicle, enemies, deltaTime);
 
-        // 4. 기관총 사정권(쏘면 맞추는) 타겟 판별
+        // 4. 기관총 사정권(쏘면 맞추는) 적 비행체 판별
         const gunTarget = this.gunHitZoneEvaluator.findGunTarget(
             vehicle,
             enemies,
             (from, to, allEnemies) => this.hasObstacle(from, to, allEnemies)
         );
         player.gunTargetId = gunTarget ? gunTarget.id : null;
+
+        // 5. 선물 상자 기관총 사정권 판별 (초록 인식 박스 없이 FIRE! 사정권 표시만)
+        const gunGiftBox = this.gunHitZoneEvaluator.findGunGiftBoxTarget(vehicle, giftBoxes);
+        player.gunGiftBoxTargetId = gunGiftBox ? gunGiftBox.id : null;
     }
 
     /**
@@ -338,6 +342,7 @@ export class TargetingManager {
         player.awarenessTargetId = null;
         player.lockOnTargetId = null;
         player.gunTargetId = null;
+        player.gunGiftBoxTargetId = null;
         this.resetLockOn(player);
     }
 

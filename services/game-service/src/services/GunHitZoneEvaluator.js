@@ -11,6 +11,7 @@ export class GunHitZoneEvaluator {
         this.enabled = indicatorCfg.enabled !== false;
         this.muzzleOffset = indicatorCfg.muzzleOffset ?? 8;
         this.hitRadius = indicatorCfg.hitRadius ?? 5.5;
+        this.giftBoxHitRadius = indicatorCfg.giftBoxHitRadius ?? this.hitRadius;
         this.defaultRange = indicatorCfg.defaultRange ?? 300;
         this.vehiclesConfig = config.vehicles || {};
     }
@@ -29,7 +30,7 @@ export class GunHitZoneEvaluator {
      * @param {((from: object, to: object, enemies: Array<object>) => boolean) | null} [hasObstacleFn]
      * @returns {object | null}
      */
-    findGunTarget(shooterVehicle, enemies = [], hasObstacleFn = null) {
+    findGunTarget(shooterVehicle, enemies = [], hasObstacleFn = null, hitRadiusOverride = null) {
         if (!this.enabled || !shooterVehicle || !shooterVehicle.active) {
             return null;
         }
@@ -49,7 +50,8 @@ export class GunHitZoneEvaluator {
             .addScaledVector(forward, this.muzzleOffset);
 
         const maxRange = this.getRangeForVehicle(shooterVehicle.vehicleType);
-        const hitRadiusSq = this.hitRadius * this.hitRadius;
+        const effectiveHitRadius = hitRadiusOverride ?? this.hitRadius;
+        const hitRadiusSq = effectiveHitRadius * effectiveHitRadius;
 
         let bestTarget = null;
         let bestProjection = Infinity;
@@ -80,5 +82,16 @@ export class GunHitZoneEvaluator {
         }
 
         return bestTarget;
+    }
+
+    /**
+     * 지금 기관총을 발사하면 맞출 수 있는 가장 가까운 활성 선물 상자 반환
+     * @param {object} shooterVehicle
+     * @param {Array<object>} giftBoxes
+     * @param {((from: object, to: object, list: Array<object>) => boolean) | null} [hasObstacleFn]
+     * @returns {object | null}
+     */
+    findGunGiftBoxTarget(shooterVehicle, giftBoxes = [], hasObstacleFn = null) {
+        return this.findGunTarget(shooterVehicle, giftBoxes, hasObstacleFn, this.giftBoxHitRadius);
     }
 }

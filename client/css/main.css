@@ -448,6 +448,12 @@ body {
     border-style: solid;
 }
 
+/* 선물 상자 등 초록 실선 박스 없이 기관총 사정권(FIRE!) 외곽만 표시 */
+.target-box.gun-only {
+    border-color: transparent;
+    border-style: none;
+}
+
 /* 기관총 사정권(쏘면 맞추는 상태) - 초록/노란 박스 바깥쪽 번쩍이는 외곽 표시 */
 .target-box.gun-in-range::before {
     content: '';

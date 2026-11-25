@@ -199,7 +199,7 @@ export class UIManager {
      * @param {THREE.Camera} camera - 씬 카메라
      * @param {HTMLElement} rendererDomElement - 렌더러 DOM 요소
      */
-    updateTargetingIndicators(myPlayerData, vehicles, camera, rendererDomElement) {
+    updateTargetingIndicators(myPlayerData, vehicles, camera, rendererDomElement, giftBoxes = null) {
         if (!myPlayerData || !this.elements.targetingContainer) return;
 
         const visibleTargets = new Set();
@@ -238,8 +238,18 @@ export class UIManager {
                 visibleTargets.add(gunTargetId);
             }
         }
+
+        // 4. 선물 상자 기관총 사정권 표시 (초록 실선 박스 없이 외곽 FIRE! 표시만)
+        const gunGiftBoxTargetId = myPlayerData.gunGiftBoxTargetId || null;
+        if (gunGiftBoxTargetId && giftBoxes) {
+            const targetGiftBox = giftBoxes.get(gunGiftBoxTargetId);
+            if (targetGiftBox) {
+                this.drawTargetBox(targetGiftBox, 'gun-only', camera, rendererDomElement, true, gunGiftBoxTargetId);
+                visibleTargets.add(gunGiftBoxTargetId);
+            }
+        }
         
-        // 4. 화면에서 사라진 타겟 박스 제거
+        // 5. 화면에서 사라진 타겟 박스 제거
         for (const [targetId, boxElement] of this.targetBoxes.entries()) {
             if (!visibleTargets.has(targetId)) {
                 boxElement.remove();
@@ -250,18 +260,25 @@ export class UIManager {
 
     /**
      * 개별 타겟 박스를 그리거나 업데이트하는 함수
-     * @param {THREE.Object3D} targetVehicle - 타겟 차량 객체
-     * @param {string} style - 'awareness', 'lock-on-progress', 'locked-on'
+     * @param {THREE.Object3D} targetObject - 타겟 차량 또는 선물 상자 객체
+     * @param {string} style - 'awareness', 'lock-on-progress', 'locked-on', 'gun-only'
      * @param {THREE.Camera} camera
      * @param {HTMLElement} rendererDomElement
      * @param {boolean} [isGunInRange=false] - 기관총 사정권(쏘면 맞추는) 여부
+     * @param {string | null} [explicitTargetId=null] - 선물 상자 등 vehicleData가 없는 객체의 명시적 ID
      */
-    drawTargetBox(targetVehicle, style, camera, rendererDomElement, isGunInRange = false) {
-        if (!targetVehicle || !targetVehicle.userData.vehicleData?.active || !targetVehicle.parent) {
+    drawTargetBox(targetObject, style, camera, rendererDomElement, isGunInRange = false, explicitTargetId = null) {
+        if (!targetObject || !targetObject.parent) {
+            return;
+        }
+        if (!explicitTargetId && !targetObject.userData.vehicleData?.active) {
+            return;
+        }
+        if (explicitTargetId && targetObject.visible === false) {
             return;
         }
 
-        const targetId = targetVehicle.userData.vehicleData.id;
+        const targetId = explicitTargetId || targetObject.userData.vehicleData.id;
         let box = this.targetBoxes.get(targetId);
 
         // 박스가 없으면 새로 생성
@@ -277,7 +294,7 @@ export class UIManager {
         box.dataset.gunInRange = isGunInRange ? 'true' : 'false';
 
         const targetPosition = new THREE.Vector3();
-        targetVehicle.getWorldPosition(targetPosition);
+        targetObject.getWorldPosition(targetPosition);
 
         const cameraDirection = new THREE.Vector3();
         camera.getWorldDirection(cameraDirection);

@@ -46,6 +46,7 @@ export class PlayerManager {
             awarenessTargetId: null,
             lockOnTargetId: null,
             gunTargetId: null,
+            gunGiftBoxTargetId: null,
             lockOnState: { isLocked: false, progress: 0 }
         };
 

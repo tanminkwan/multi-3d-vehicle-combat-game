@@ -311,11 +311,12 @@ export default class GameManager {
     }
 
     updatePlayerTargetsAndLockOn(deltaTime) {
+        const giftBoxes = this.giftBoxManager.getAllGiftBoxes();
         for (const player of this.playerManager.getAllPlayers()) {
             const playerVehicle = this.vehicleManager.getPlayerVehicle(player.id);
             if (!playerVehicle) continue;
             const enemies = this.vehicleManager.getAllVehicles().filter(v => v.playerId !== player.id && v.active);
-            this.targetingManager.update(player, playerVehicle, enemies, deltaTime);
+            this.targetingManager.update(player, playerVehicle, enemies, deltaTime, giftBoxes);
         }
     }
 

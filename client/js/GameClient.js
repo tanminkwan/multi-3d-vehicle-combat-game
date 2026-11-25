@@ -718,7 +718,8 @@ export class GameClient {
                 myPlayerData, 
                 this.vehicles, 
                 this.camera, 
-                this.renderer.domElement
+                this.renderer.domElement,
+                this.giftBoxes
             );
         }
     }
