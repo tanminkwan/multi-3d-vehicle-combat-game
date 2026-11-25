@@ -13,6 +13,7 @@ import { TargetingManager } from './TargetingManager.js';
 import { GiftBoxManager } from './GiftBoxManager.js';
 import { NpcManager } from './NpcManager.js';
 import { defaultOnPlayerLeave, createSafeLeaveInvoker } from './hooks/PlayerLeaveCallback.js';
+import { resolveWeaponDamage } from './VehicleHealthPolicy.js';
 
 /**
  * 게임의 모든 시스템을 총괄하고 오케스트레이션하는 최상위 클래스
@@ -105,16 +106,28 @@ export default class GameManager {
         }
         const { player } = playerResult;
 
-        const vehicle = this.vehicleManager.createVehicleForPlayer(player.id, vehicleType, player.color);
+        const vehicle = this.vehicleManager.createVehicleForPlayer(player.id, vehicleType, player.color, { isNpc });
         const vehicleConfig = this.config.vehicles[vehicleType] || this.config.vehicles.fighter;
 
+        const playerDamageMultiplier = this.config?.game?.playerDamageMultiplier;
+        const machinegunDamage = resolveWeaponDamage(vehicleConfig.bulletDamage, {
+            isNpc,
+            playerDamageMultiplier
+        });
+        const baseMissileDamage = vehicleConfig.missileDamage ?? this.config?.weapons?.missile?.damage ?? 30;
+        const missileDamage = resolveWeaponDamage(baseMissileDamage, {
+            isNpc,
+            playerDamageMultiplier
+        });
+
         this.weaponSystem.equipWeapon(player.id, 'machinegun', {
-            damage: vehicleConfig.bulletDamage,
+            damage: machinegunDamage,
             speed: vehicleConfig.bulletSpeed,
             range: vehicleConfig.bulletRange,
             cooldown: 1000 / vehicleConfig.fireRate
         });
         this.weaponSystem.equipWeapon(player.id, 'missile', {
+            damage: missileDamage,
             ammo: vehicleConfig.missileCount || 4,
             maxAmmo: vehicleConfig.missileCount || 4,
             reloadTime: (vehicleConfig.missileReloadTime || 25) * 1000

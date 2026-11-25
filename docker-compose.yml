@@ -76,6 +76,8 @@ services:
       PORT: 3001
       JWT_SECRET: your-super-secret-jwt-key-change-in-production
       ALLOW_EXTERNAL_ACCESS: false
+    volumes:
+      - ./services/game-service/src/config/game-config.yaml:/app/services/game-service/src/config/game-config.yaml:ro
     # ports:
     #   - "3001:3001"
     healthcheck:

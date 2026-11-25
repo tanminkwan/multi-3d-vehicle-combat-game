@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { SpawnPositionResolver } from './SpawnPositionResolver.js';
+import { resolveVehicleMaxHealth } from './VehicleHealthPolicy.js';
 
 /**
  * 차량(Vehicle)의 생성, 제거, 업데이트 등 생명주기를 관리하는 클래스
@@ -24,9 +25,10 @@ export class VehicleManager {
      * @param {string} playerId 
      * @param {string} vehicleType 
      * @param {string} color 
+     * @param {{ isNpc?: boolean }} [options]
      * @returns {Vehicle}
      */
-    createVehicleForPlayer(playerId, vehicleType, color) {
+    createVehicleForPlayer(playerId, vehicleType, color, options = {}) {
         const vehicleId = uuidv4();
         const spawnPosition = this.getSpawnPosition();
         
@@ -36,8 +38,15 @@ export class VehicleManager {
             config: this.config
         });
 
+        const resolvedMaxHealth = resolveVehicleMaxHealth(vehicle.maxHealth, {
+            isNpc: Boolean(options.isNpc),
+            playerHealthMultiplier: this.config?.game?.playerHealthMultiplier
+        });
+        vehicle.maxHealth = resolvedMaxHealth;
+        vehicle.health = resolvedMaxHealth;
+
         this.vehicles.set(vehicleId, vehicle);
-        console.log(`[VehicleManager] Created ${vehicleType} for player ${playerId}`);
+        console.log(`[VehicleManager] Created ${vehicleType} for player ${playerId} (HP: ${resolvedMaxHealth}, isNpc: ${Boolean(options.isNpc)})`);
         
         return vehicle;
     }

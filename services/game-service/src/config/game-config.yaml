@@ -11,6 +11,8 @@ game:
   respawnTime: 5000                  # 리스폰 시간 (밀리초) - 5초로 변경
   respawnInvulnerabilityMs: 5000     # 리스폰 후 무적 지속 시간 (밀리초) - 5초
   respawnMinDistanceFromDeath: 40    # 이전 파괴 위치로부터 최소 이격 거리
+  playerHealthMultiplier: 2.0        # 인간 플레이어 전용 체력 배율 (NPC 제외)
+  playerDamageMultiplier: 2.0        # 인간 플레이어 전용 화력(기관총/미사일) 배율 (NPC 제외)
   
 server:
   port: 3001                         # 서버 포트 번호
