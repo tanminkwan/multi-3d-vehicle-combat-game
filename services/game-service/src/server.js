@@ -46,7 +46,9 @@ export function createGameServer(config, options = {}) {
             origin: config.network?.cors?.enabled ? config.network.cors.origins : false,
             methods: ['GET', 'POST'],
             credentials: true
-        }
+        },
+        pingTimeout: config.server?.socketPingTimeoutMs || 60000,
+        pingInterval: config.server?.socketPingIntervalMs || 25000
     };
 
     const io = new SocketIOServer(server, socketConfig);

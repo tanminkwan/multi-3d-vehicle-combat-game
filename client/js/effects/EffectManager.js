@@ -19,6 +19,34 @@ export class EffectManager {
         // 콜백 함수들
         this.onExplosionDestroyed = null;
         this.onDebrisDestroyed = null;
+
+        // 공유 지오메트리 (폭발 생성 시 GPU 버퍼 재할당 및 메모리 누수 방지)
+        const lowPerf = Boolean(this.config?.client?.performance?.lowPerformanceMode);
+        this.sharedExplosionSphereGeo = new THREE.SphereGeometry(1, lowPerf ? 8 : 12, lowPerf ? 8 : 12);
+        this.sharedParticleSphereGeo = new THREE.SphereGeometry(1, 5, 5);
+    }
+
+    /**
+     * 폭발 그룹 제거 및 개별 머티리얼 해제 (공유 지오메트리는 유지)
+     */
+    disposeExplosionGroup(explosionGroup) {
+        if (!explosionGroup || explosionGroup.userData?.disposed) return;
+        explosionGroup.userData.disposed = true;
+        if (explosionGroup.parent) {
+            this.scene.remove(explosionGroup);
+        }
+        explosionGroup.children.forEach((child) => {
+            if (child.material && typeof child.material.dispose === 'function') {
+                child.material.dispose();
+            }
+        });
+        const expId = explosionGroup.userData?.explosionData?.id;
+        if (expId) {
+            this.explosions.delete(expId);
+            if (this.onExplosionDestroyed) {
+                this.onExplosionDestroyed(expId);
+            }
+        }
     }
     
     /**
@@ -46,44 +74,56 @@ export class EffectManager {
         // config에서 폭발 설정 가져오기 (폴백은 Constants에서)
         const explosionConfig = this.config?.effects?.explosion || {};
         const lowPerf = Boolean(this.config?.client?.performance?.lowPerformanceMode);
+
+        // 동시 활성 폭발 상한 적용 (오래된 폭발 즉시 정리해 프레임 드랍 방지)
+        const maxConcurrent = explosionConfig.maxConcurrent || 6;
+        while (this.explosions.size >= maxConcurrent) {
+            const oldestGroup = this.explosions.values().next().value;
+            if (!oldestGroup) break;
+            this.disposeExplosionGroup(oldestGroup);
+        }
         
         const explosionGroup = new THREE.Group();
         
-        // 메인 폭발 (더 크게)
+        // 메인 폭발 (공유 단위 구체 스케일링)
         const explosionRadius = (explosionConfig.radius || EFFECT_DEFAULTS.EXPLOSION.radius) * (explosionData.radius || 1);
-        const sphereSegments = lowPerf ? 10 : 24;
-        const explosionGeometry = new THREE.SphereGeometry(explosionRadius, sphereSegments, sphereSegments);
         const explosionMaterial = new THREE.MeshBasicMaterial({
             color: explosionConfig.color || EFFECT_DEFAULTS.EXPLOSION.color,
             transparent: true,
             opacity: explosionConfig.opacity || EFFECT_DEFAULTS.EXPLOSION.opacity
         });
-        const explosion = new THREE.Mesh(explosionGeometry, explosionMaterial);
+        const explosion = new THREE.Mesh(this.sharedExplosionSphereGeo, explosionMaterial);
+        explosion.userData.baseRadius = explosionRadius;
+        explosion.scale.setScalar(explosionRadius);
         explosionGroup.add(explosion);
         
         // 외부 글로우 효과 추가
-        const glowGeometry = new THREE.SphereGeometry(explosionRadius * 1.5, lowPerf ? 8 : 16, lowPerf ? 8 : 16);
         const glowMaterial = new THREE.MeshBasicMaterial({
             color: explosionConfig.glowColor || EFFECT_DEFAULTS.EXPLOSION.glowColor,
             transparent: true,
             opacity: MATERIAL_OPACITY.EXPLOSION_GLOW
         });
-        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        const glow = new THREE.Mesh(this.sharedExplosionSphereGeo, glowMaterial);
+        glow.userData.baseRadius = explosionRadius * 1.5;
+        glow.scale.setScalar(explosionRadius * 1.5);
         explosionGroup.add(glow);
         
-        // 파티클 효과
-        const rawParticleCount = (explosionConfig.particleCount || EFFECT_DEFAULTS.EXPLOSION.particleCount) * 2;
-        const particleCount = lowPerf ? Math.min(12, rawParticleCount) : rawParticleCount;
+        // 파티클 효과 (경량화: 공유 지오메트리 사용)
+        const configuredCount = explosionConfig.particleCount || 16;
+        const particleCount = lowPerf ? Math.min(8, configuredCount) : Math.min(20, configuredCount);
         const particleColors = explosionConfig.particleColors || EFFECT_DEFAULTS.EXPLOSION.particleColors;
         const spreadRange = explosionRadius * 3;
         
         for (let i = 0; i < particleCount; i++) {
             const particleRadius = (explosionConfig.particleRadius || EFFECT_DEFAULTS.EXPLOSION.particleRadius) * (1 + Math.random());
-            const particleGeometry = new THREE.SphereGeometry(particleRadius, 6, 6);
             const particleMaterial = new THREE.MeshBasicMaterial({
-                color: particleColors[Math.floor(Math.random() * particleColors.length)]
+                color: particleColors[Math.floor(Math.random() * particleColors.length)],
+                transparent: true,
+                opacity: 0.9
             });
-            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            const particle = new THREE.Mesh(this.sharedParticleSphereGeo, particleMaterial);
+            particle.userData.baseRadius = particleRadius;
+            particle.scale.setScalar(particleRadius);
             
             // 파티클 위치를 폭발 중심 주변에 랜덤 배치
             particle.position.set(
@@ -127,22 +167,15 @@ export class EffectManager {
         const duration = explosionGroup.userData.duration || 2000;
         
         const animate = () => {
+            if (explosionGroup.userData?.disposed) {
+                return;
+            }
+
             const elapsed = Date.now() - startTime;
             const progress = elapsed / duration;
             
             if (progress >= 1.0) {
-                // 애니메이션 완료 - 폭발 제거
-                this.scene.remove(explosionGroup);
-                
-                // explosionData가 있는 경우에만 Map에서 삭제
-                if (explosionGroup.userData.explosionData) {
-                    this.explosions.delete(explosionGroup.userData.explosionData.id);
-                    
-                    // 콜백 호출
-                    if (this.onExplosionDestroyed) {
-                        this.onExplosionDestroyed(explosionGroup.userData.explosionData.id);
-                    }
-                }
+                this.disposeExplosionGroup(explosionGroup);
                 return;
             }
             
@@ -151,13 +184,14 @@ export class EffectManager {
             const scale = 0.5 + scaleProgress * 1.5; // 0.5에서 2.0까지 확장 후 축소
             
             explosionGroup.children.forEach((child, index) => {
+                const baseRadius = child.userData.baseRadius || 1;
                 if (index === 0) {
                     // 메인 폭발
-                    child.scale.setScalar(scale);
+                    child.scale.setScalar(baseRadius * scale);
                     child.material.opacity = (1 - progress) * 1.0;
                 } else if (index === 1) {
                     // 글로우 효과
-                    child.scale.setScalar(scale * 1.2);
+                    child.scale.setScalar(baseRadius * scale * 1.2);
                     child.material.opacity = (1 - progress) * 0.3;
                 } else {
                     // 파티클들
@@ -176,7 +210,7 @@ export class EffectManager {
                         
                         // 파티클 크기 변화
                         const particleScale = 1 - progress * 0.5;
-                        child.scale.setScalar(particleScale);
+                        child.scale.setScalar(baseRadius * particleScale);
                     }
                 }
             });

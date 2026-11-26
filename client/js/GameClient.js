@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { InputManager } from './input/InputManager.js';
+import { MouseFlightController } from './input/MouseFlightController.js';
 import { NetworkManager } from './network/NetworkManager.js';
 import { UIManager } from './ui/UIManager.js';
 import { CameraManager } from './camera/CameraManager.js';
@@ -56,7 +57,13 @@ export class GameClient {
         };
         
         // 매니저들 초기화
-        this.inputManager = new InputManager();
+        this.mouseFlightController = new MouseFlightController(gameData.config);
+        this.mouseRaycaster = new THREE.Raycaster();
+        this.waypointMarker = null;
+
+        this.inputManager = new InputManager({
+            moveMouseButton: this.mouseFlightController.moveMouseButton
+        });
         this.setupInputManagerCallbacks();
         
         this.networkManager = new NetworkManager(socket, gameData.config);
@@ -90,6 +97,14 @@ export class GameClient {
         this.inputManager.setCallback('onFirstPersonToggle', (isFirstPerson) => {
             // 기존 코드와 동기화 (호환성 유지)
             this.isFirstPerson = isFirstPerson;
+            if (isFirstPerson) {
+                this.clearMouseFlightTarget();
+            }
+        });
+
+        // 마우스 우클릭 3D 공간 이동 콜백
+        this.inputManager.setCallback('onMoveClick', (clickInfo) => {
+            this.handleMouseMoveCommand(clickInfo);
         });
     }
 
@@ -238,6 +253,10 @@ export class GameClient {
                         vehicle.visible = false;
                         console.log(`Vehicle ${data.vehicleId} hidden after destruction`);
                     }
+                }
+
+                if (data.playerId && this.myPlayer && data.playerId === this.myPlayer.id) {
+                    this.clearMouseFlightTarget();
                 }
                 
                 // UI 알림
@@ -669,6 +688,9 @@ export class GameClient {
         const mousePos = this.inputManager.getMousePosition();
         this.mouseX = mousePos.x;
         this.mouseY = mousePos.y;
+
+        // 마우스 우클릭 자동 비행 조향 적용 (키보드 수동 입력 시 즉시 취소)
+        this.updateMouseFlightControl(deltaTime);
         
         // 내 비행체 부스터 효과 업데이트
         this.updateMyVehicleBooster();
@@ -700,6 +722,7 @@ export class GameClient {
         this.updateGiftBoxesAnimation(deltaTime);
         this.updateInvulnerabilityVisuals();
         this.updateVehiclePropellers(deltaTime);
+        this.syncMouseFlightCursor();
         
         // 렌더링
         this.renderer.render(this.scene, this.camera);
@@ -1642,9 +1665,174 @@ export class GameClient {
     }
 
     /**
+     * 마우스 우클릭으로 3D 공간 웨이포인트 설정
+     */
+    handleMouseMoveCommand(clickInfo) {
+        if (!this.mouseFlightController?.isEnabled() || !this.camera || !this.myVehicle || this.isFirstPerson) {
+            return;
+        }
+        if (this.myVehicle.userData?.vehicleData?.active === false) {
+            return;
+        }
+
+        const ndc = new THREE.Vector2(clickInfo.ndcX, clickInfo.ndcY);
+        this.mouseRaycaster.setFromCamera(ndc, this.camera);
+
+        let rawPoint = null;
+        if (this.worldManager?.terrain) {
+            const hits = this.mouseRaycaster.intersectObject(this.worldManager.terrain, false);
+            if (hits.length > 0) {
+                const hit = hits[0];
+                if (hit.distance >= this.mouseFlightController.minTargetDistance &&
+                    hit.distance <= this.mouseFlightController.maxTargetDistance) {
+                    rawPoint = {
+                        x: hit.point.x,
+                        y: hit.point.y + this.mouseFlightController.minTerrainClearance,
+                        z: hit.point.z
+                    };
+                }
+            }
+        }
+
+        if (!rawPoint) {
+            const pointOnRay = new THREE.Vector3();
+            this.mouseRaycaster.ray.at(this.mouseFlightController.defaultTargetDistance, pointOnRay);
+            rawPoint = { x: pointOnRay.x, y: pointOnRay.y, z: pointOnRay.z };
+        }
+
+        const terrainHeight = this.worldManager?.getTerrainHeight
+            ? this.worldManager.getTerrainHeight(rawPoint.x, rawPoint.z)
+            : 0;
+        const target = this.mouseFlightController.setTarget(rawPoint, terrainHeight);
+
+        if (target) {
+            this.updateWaypointMarker(target);
+            this.syncMouseFlightCursor();
+        }
+    }
+
+    /**
+     * 마우스 자동 비행 조향 업데이트 및 키보드 수동 오버라이드 처리
+     */
+    updateMouseFlightControl(deltaTime) {
+        if (!this.mouseFlightController?.isEnabled()) return;
+
+        if (this.inputManager?.hasManualFlightInput()) {
+            if (this.mouseFlightController.hasTarget()) {
+                this.clearMouseFlightTarget();
+            }
+            return;
+        }
+
+        if (!this.mouseFlightController.hasTarget() || !this.myVehicle) {
+            return;
+        }
+
+        const vd = this.myVehicle.userData?.vehicleData;
+        if (vd && vd.active === false) {
+            this.clearMouseFlightTarget();
+            return;
+        }
+
+        const steering = this.mouseFlightController.computeSteering(
+            this.myVehicle.position,
+            this.myVehicle.rotation
+        );
+
+        if (steering.active) {
+            this.inputs.thrust = steering.thrust;
+            this.inputs.pitch = steering.pitch;
+            this.inputs.yaw = steering.yaw;
+            this.inputs.roll = steering.roll;
+            this.inputs.vertical = steering.vertical;
+
+            if (this.waypointMarker && this.waypointMarker.visible) {
+                this.waypointMarker.rotation.y += 2.2 * deltaTime;
+                const pulse = 1 + Math.sin(Date.now() * 0.008) * 0.12;
+                this.waypointMarker.scale.setScalar(pulse);
+            }
+        } else {
+            this.clearMouseFlightTarget();
+        }
+    }
+
+    /**
+     * 3D 웨이포인트 마커 생성/이동
+     */
+    updateWaypointMarker(target) {
+        if (!this.mouseFlightController?.waypointMarkerEnabled || !this.scene) return;
+
+        if (!this.waypointMarker) {
+            const group = new THREE.Group();
+            const ring = new THREE.Mesh(
+                new THREE.TorusGeometry(6.0, 0.45, 8, 24),
+                new THREE.MeshBasicMaterial({ color: 0xffca28, transparent: true, opacity: 0.95 })
+            );
+            ring.rotation.x = Math.PI / 2;
+            group.add(ring);
+
+            const core = new THREE.Mesh(
+                new THREE.OctahedronGeometry(2.0, 0),
+                new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.95 })
+            );
+            group.add(core);
+
+            const beam = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.3, 0.3, 28, 8),
+                new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.45 })
+            );
+            group.add(beam);
+
+            this.waypointMarker = group;
+            this.scene.add(group);
+        }
+
+        this.waypointMarker.position.set(target.x, target.y, target.z);
+        this.waypointMarker.visible = true;
+    }
+
+    /**
+     * 마우스 자동 비행 목표 및 3D 마커 해제
+     */
+    clearMouseFlightTarget() {
+        if (this.mouseFlightController) {
+            this.mouseFlightController.clearTarget();
+        }
+        if (this.waypointMarker) {
+            this.waypointMarker.visible = false;
+        }
+        this.syncMouseFlightCursor();
+    }
+
+    /**
+     * #gameCanvas 커서 상태 클래스 동기화
+     */
+    syncMouseFlightCursor() {
+        const canvas = this.renderer?.domElement || document.getElementById('gameCanvas');
+        if (!canvas) return;
+        const enabled = Boolean(this.mouseFlightController?.isEnabled() && !this.isFirstPerson);
+        const active = Boolean(enabled && this.mouseFlightController?.hasTarget());
+        canvas.classList.toggle('mouse-flight-enabled', enabled);
+        canvas.classList.toggle('mouse-flight-active', active);
+    }
+
+    /**
      * 게임 퇴장 시 모든 클라이언트 리소스 정리
      */
     cleanup() {
+        this.clearMouseFlightTarget();
+        const canvas = this.renderer?.domElement || document.getElementById('gameCanvas');
+        if (canvas) {
+            canvas.classList.remove('mouse-flight-enabled', 'mouse-flight-active');
+        }
+        if (this.waypointMarker) {
+            this.waypointMarker.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+            if (this.scene) this.scene.remove(this.waypointMarker);
+            this.waypointMarker = null;
+        }
         this.isRunning = false;
         if (this.animationFrameId !== null) {
             cancelAnimationFrame(this.animationFrameId);

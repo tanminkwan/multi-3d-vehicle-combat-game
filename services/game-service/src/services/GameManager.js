@@ -38,8 +38,9 @@ export default class GameManager {
         this.performanceMonitor = new PerformanceMonitor(config);
         this.npcManager = new NpcManager(config, this.createNpcWorldPort(), options.npcDeps);
 
-        // 리스폰 타이머 관리 (플레이어/NPC 제거 시 유령 리스폰 방지)
+        // 리스폰 타이머 및 피격 폭발 쿨다운 관리
         this.respawnTimers = new Map();
+        this.lastHitExplosionAt = new Map();
 
         // 플레이어 퇴장 확장용 콜백 (기본값: 빈 no-op 콜백)
         this.invokePlayerLeave = createSafeLeaveInvoker(options.onPlayerLeave || defaultOnPlayerLeave);
@@ -331,10 +332,17 @@ export default class GameManager {
         this.npcManager.notifyNpcHit(vehicle.playerId, collision.ownerId);
 
         if (vehicle.takeDamage(collision.damage)) {
+            this.lastHitExplosionAt.delete(vehicle.id);
             this.handleVehicleDestroyed(vehicle, collision);
         } else {
-            const { explosionRadiusSmall, explosionDurationSmall, explosionIntensitySmall } = this.config.collision;
-            this.effectSystem.createExplosion(vehicle.position, explosionRadiusSmall, explosionDurationSmall, explosionIntensitySmall);
+            const now = Date.now();
+            const cooldownMs = this.config?.collision?.hitExplosionCooldownMs ?? 300;
+            const lastAt = this.lastHitExplosionAt.get(vehicle.id) || 0;
+            if (now - lastAt >= cooldownMs) {
+                this.lastHitExplosionAt.set(vehicle.id, now);
+                const { explosionRadiusSmall, explosionDurationSmall, explosionIntensitySmall } = this.config.collision;
+                this.effectSystem.createExplosion(vehicle.position, explosionRadiusSmall, explosionDurationSmall, explosionIntensitySmall);
+            }
         }
     }
 

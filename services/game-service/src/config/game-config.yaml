@@ -17,6 +17,8 @@ game:
 server:
   port: 3001                         # 서버 포트 번호
   tickRate: 60                       # 서버 업데이트 주기 (Hz, 초당 프레임)
+  socketPingTimeoutMs: 60000         # Socket.IO 하트비트 타임아웃 (ms)
+  socketPingIntervalMs: 25000        # Socket.IO 하트비트 간격 (ms)
   
 # 점수 시스템 설정
 scoring:
@@ -28,6 +30,7 @@ scoring:
 collision:
   safeDistance: 20                   # 광고판 충돌 시 안전 거리
   velocityReflection: 0.5            # 충돌 시 속도 반사 계수
+  hitExplosionCooldownMs: 300        # 기체별 소형 피격 폭발 최소 간격 (ms, 연사 시 폭발 폭주 방지)
   explosionRadiusSmall: 5            # 작은 폭발 반지름 (피격 시)
   explosionRadiusLarge: 25           # 큰 폭발 반지름 (파괴 시)
   explosionDurationSmall: 1000       # 작은 폭발 지속시간 (ms)
@@ -444,9 +447,10 @@ effects:
     trailColor: "#FF8800"            # 궤적 색상 (주황색)
     glowOpacity: 0.3                 # 글로우 투명도
   explosion:                         # 폭발 시각 효과
-    radius: 8                        # 폭발 반지름 (8배 증가)
-    particleCount: 50                # 파티클 개수 (50개로 증가)
-    particleRadius: 0.5              # 파티클 반지름 (2.5배 증가)
+    radius: 8                        # 폭발 반지름
+    particleCount: 16                # 파티클 개수 (클라이언트 프리징 방지를 위해 경량화)
+    maxConcurrent: 6                 # 동시 표시 최대 폭발 개수
+    particleRadius: 0.5              # 파티클 반지름
     color: "#FF4400"                 # 메인 폭발 색상
     particleColors: ["#FF4400", "#FFAA00", "#FF0000", "#FFFF00"]  # 파티클 색상 목록 (더 다양하게)
     opacity: 1.0                     # 메인 폭발 투명도 (완전 불투명)
@@ -462,6 +466,18 @@ camera:
 client:
   inputSendRate: 60                  # 입력 전송 주기 (Hz)
   messageDisplayDuration: 3000       # 메시지 표시 시간 (ms)
+  mouseFlight:                       # 마우스 우클릭 3D 공간 비행 조종 설정
+    enabled: true                    # 마우스 클릭 이동 기능 활성화 여부
+    moveMouseButton: 2               # 이동 명령 마우스 버튼 (2: 우클릭, 0: 좌클릭)
+    defaultTargetDistance: 120       # 허공 클릭 시 목표 지점 거리 (유닛)
+    minTargetDistance: 25            # 최소 목표 거리
+    maxTargetDistance: 220           # 최대 목표 거리
+    arrivalRadius: 12                # 목표 도착 판정 반경
+    minTerrainClearance: 18          # 지형/수면 위 최소 안전 고도
+    autoThrottle: 1.0                # 자동 이동 시 기본 추력 (0~1)
+    steerDeadzoneRad: 0.04           # 미세 떨림 방지 조향 데드존 (라디안)
+    maxBankAngleRad: 0.45            # 선회 시 롤 기울기 한계
+    waypointMarkerEnabled: true      # 3D 웨이포인트 마커 표시 여부
   clouds:                            # 구름 설정
     count: 10                        # 구름 개수 (성능 최적화로 감소)
     heightMin: 50                    # 최소 높이

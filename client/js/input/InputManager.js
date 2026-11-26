@@ -3,11 +3,12 @@
  * 키보드, 마우스 입력을 처리하고 게임 입력 상태를 관리
  */
 export class InputManager {
-    constructor() {
+    constructor(options = {}) {
         // 입력 상태 - 원래 게임과 동일
         this.keys = {};
         this.mouseX = 0;
         this.mouseY = 0;
+        this.moveMouseButton = options.moveMouseButton ?? 2; // 기본 우클릭 이동
         this.inputs = {
             thrust: 0,
             pitch: 0,
@@ -24,6 +25,7 @@ export class InputManager {
         
         // 콜백 함수들
         this.onFirstPersonToggle = null;
+        this.onMoveClick = null;
         
         // CameraManager 참조
         this.cameraManager = null;
@@ -92,14 +94,35 @@ export class InputManager {
         };
         
         const mousedownHandler = (e) => {
-            if (e.button === 0) { // 좌클릭
+            const canvas = document.getElementById('gameCanvas');
+            const isOnCanvas = canvas && e.target === canvas;
+
+            if (e.button === 0 && isOnCanvas) { // 좌클릭: 기존 기관총 발사 유지 (UI 버튼 클릭 제외)
                 this.inputs.fire = true;
+            } else if (e.button === this.moveMouseButton && isOnCanvas && !this.isFirstPerson) {
+                // 우클릭: 클릭한 3D 공간으로 이동
+                e.preventDefault();
+                if (this.onMoveClick) {
+                    const rect = canvas.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) {
+                        const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                        const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                        this.onMoveClick({ ndcX, ndcY, clientX: e.clientX, clientY: e.clientY });
+                    }
+                }
             }
         };
         
         const mouseupHandler = (e) => {
             if (e.button === 0) {
                 this.inputs.fire = false;
+            }
+        };
+
+        const contextmenuHandler = (e) => {
+            const canvas = document.getElementById('gameCanvas');
+            if (canvas && e.target === canvas) {
+                e.preventDefault();
             }
         };
         
@@ -109,6 +132,7 @@ export class InputManager {
         document.addEventListener('mousemove', mousemoveHandler);
         document.addEventListener('mousedown', mousedownHandler);
         document.addEventListener('mouseup', mouseupHandler);
+        document.addEventListener('contextmenu', contextmenuHandler);
         
         // cleanup을 위해 저장
         this.eventListeners = [
@@ -116,7 +140,8 @@ export class InputManager {
             { element: document, event: 'keyup', handler: keyupHandler },
             { element: document, event: 'mousemove', handler: mousemoveHandler },
             { element: document, event: 'mousedown', handler: mousedownHandler },
-            { element: document, event: 'mouseup', handler: mouseupHandler }
+            { element: document, event: 'mouseup', handler: mouseupHandler },
+            { element: document, event: 'contextmenu', handler: contextmenuHandler }
         ];
     }
     
@@ -261,11 +286,27 @@ export class InputManager {
     }
     
     /**
+     * 수동 비행 조종 키(WASD/방향키/Q/E/Space/X/Shift/Ctrl)가 눌려 있는지 여부 반환
+     */
+    hasManualFlightInput() {
+        return Boolean(
+            this.keys['KeyW'] || this.keys['KeyS'] || this.keys['ArrowUp'] || this.keys['ArrowDown'] ||
+            this.keys['KeyA'] || this.keys['KeyD'] || this.keys['ArrowLeft'] || this.keys['ArrowRight'] ||
+            this.keys['KeyQ'] || this.keys['KeyE'] ||
+            this.keys['Space'] || this.keys['KeyX'] ||
+            this.keys['ShiftLeft'] || this.keys['ShiftRight'] ||
+            this.keys['ControlLeft'] || this.keys['ControlRight']
+        );
+    }
+
+    /**
      * 콜백 함수 설정
      */
     setCallback(callbackName, callback) {
         if (callbackName === 'onFirstPersonToggle') {
             this.onFirstPersonToggle = callback;
+        } else if (callbackName === 'onMoveClick') {
+            this.onMoveClick = callback;
         }
     }
     
