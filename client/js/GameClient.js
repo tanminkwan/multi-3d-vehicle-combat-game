@@ -6,6 +6,7 @@ import { MouseFlightController } from './input/MouseFlightController.js';
 import { NetworkManager } from './network/NetworkManager.js';
 import { UIManager } from './ui/UIManager.js';
 import { CameraManager } from './camera/CameraManager.js';
+import { FirstPersonViewPolicy } from './camera/FirstPersonViewPolicy.js';
 import { EffectManager } from './effects/EffectManager.js';
 import { VehicleFactory } from './entities/VehicleFactory.js';
 import { WorldManager } from './world/WorldManager.js';
@@ -57,12 +58,15 @@ export class GameClient {
         };
         
         // 매니저들 초기화
+        this.firstPersonViewPolicy = new FirstPersonViewPolicy(gameData.config);
         this.mouseFlightController = new MouseFlightController(gameData.config);
         this.mouseRaycaster = new THREE.Raycaster();
         this.waypointMarker = null;
 
         this.inputManager = new InputManager({
-            moveMouseButton: this.mouseFlightController.moveMouseButton
+            moveMouseButton: this.mouseFlightController.moveMouseButton,
+            allowFirstPersonMouseFlight: this.firstPersonViewPolicy.canUseMouseFlight(true),
+            usePointerLockInFirstPerson: this.firstPersonViewPolicy.shouldUsePointerLock()
         });
         this.setupInputManagerCallbacks();
         
@@ -97,9 +101,11 @@ export class GameClient {
         this.inputManager.setCallback('onFirstPersonToggle', (isFirstPerson) => {
             // 기존 코드와 동기화 (호환성 유지)
             this.isFirstPerson = isFirstPerson;
-            if (isFirstPerson) {
+            if (this.firstPersonViewPolicy.shouldClearWaypointOnViewToggle(isFirstPerson)) {
                 this.clearMouseFlightTarget();
             }
+            this.syncOwnVehicleVisibility();
+            this.syncMouseFlightCursor();
         });
 
         // 마우스 우클릭 3D 공간 이동 콜백
@@ -281,10 +287,10 @@ export class GameClient {
                     // 차량 데이터 업데이트
                     vehicle.userData.vehicleData = data.vehicle;
                     
-                    // 차량을 다시 보이게 만들기
+                    // 차량을 다시 보이게 만들기 (1인칭 내 기체 숨김 정책 준수)
                     if (data.shouldShow) {
-                        vehicle.visible = true;
-                        console.log(`Vehicle ${data.vehicle.id} shown after respawn`);
+                        vehicle.visible = this.resolveVehicleVisibility(vehicle, data.vehicle);
+                        console.log(`Vehicle ${data.vehicle.id} visibility updated after respawn: ${vehicle.visible}`);
                     }
                 }
                 
@@ -333,7 +339,7 @@ export class GameClient {
         this.worldManager.createWorld();
         
         // CameraManager 초기화 (camera와 controls가 생성된 후)
-        this.cameraManager = new CameraManager(this.camera, this.controls, this.config);
+        this.cameraManager = new CameraManager(this.camera, this.controls, this.config, this.firstPersonViewPolicy);
         
         // EffectManager 초기화 (scene이 생성된 후)
         this.effectManager = new EffectManager(this.scene, this.config);
@@ -1025,13 +1031,8 @@ export class GameClient {
                     0.3
                 ); // 롤 (Q/E)
                 
-                // 차량 가시성 상태 업데이트 (서버에서 visible 정보가 있는 경우)
-                if (vehicleData.hasOwnProperty('visible')) {
-                    vehicle.visible = vehicleData.visible;
-                } else if (vehicleData.hasOwnProperty('active')) {
-                    // active 상태에 따라 가시성 결정 (fallback)
-                    vehicle.visible = vehicleData.active;
-                }
+                // 차량 가시성 상태 업데이트 (1인칭 내 기체 숨김 정책 반영)
+                vehicle.visible = this.resolveVehicleVisibility(vehicle, vehicleData);
                 
                 // 엔진 글로우 효과 (추력에 따라 밝기 조절)
                 if (vehicle.userData.engine && vehicle.userData.glow) {
@@ -1238,6 +1239,7 @@ export class GameClient {
             // 내 비행체인 경우 참조 저장
             if (vehicleData.playerId === this.myPlayer.id) {
                 this.myVehicle = vehicleGroup;
+                this.syncOwnVehicleVisibility();
             }
             
             return vehicleGroup;
@@ -1632,12 +1634,10 @@ export class GameClient {
             if (!data) continue;
 
             if (data.isInvulnerable) {
-                const isSelfFirstPerson = vehicle === this.myVehicle && this.isFirstPerson;
-                vehicle.visible = !isSelfFirstPerson && blinkVisible;
+                vehicle.visible = this.resolveVehicleVisibility(vehicle, data, blinkVisible);
                 vehicle.userData.wasInvulnerable = true;
             } else if (vehicle.userData.wasInvulnerable) {
-                const isSelfFirstPerson = vehicle === this.myVehicle && this.isFirstPerson;
-                vehicle.visible = !isSelfFirstPerson && (data.visible !== false);
+                vehicle.visible = this.resolveVehicleVisibility(vehicle, data, true);
                 vehicle.userData.wasInvulnerable = false;
             }
         }
@@ -1665,10 +1665,41 @@ export class GameClient {
     }
 
     /**
+     * 비행체의 최종 가시성을 시점 정책(1인칭 내 기체 숨김)과 서버 상태에 따라 계산
+     */
+    resolveVehicleVisibility(vehicle, vehicleData, blinkVisible = true) {
+        const data = vehicleData || vehicle?.userData?.vehicleData;
+        const serverVisible = data
+            ? (Object.prototype.hasOwnProperty.call(data, 'visible') ? data.visible : data.active !== false)
+            : true;
+        const isOwnVehicle = Boolean(
+            vehicle && (
+                vehicle === this.myVehicle ||
+                (this.myPlayer && data?.playerId === this.myPlayer.id)
+            )
+        );
+        return this.firstPersonViewPolicy.resolveVehicleVisibility({
+            isOwnVehicle,
+            isFirstPerson: this.isFirstPerson,
+            serverVisible,
+            isInvulnerable: Boolean(data?.isInvulnerable),
+            blinkVisible
+        });
+    }
+
+    /**
+     * 내 비행체 가시성 즉시 동기화
+     */
+    syncOwnVehicleVisibility() {
+        if (!this.myVehicle) return;
+        this.myVehicle.visible = this.resolveVehicleVisibility(this.myVehicle, this.myVehicle.userData?.vehicleData);
+    }
+
+    /**
      * 마우스 우클릭으로 3D 공간 웨이포인트 설정
      */
     handleMouseMoveCommand(clickInfo) {
-        if (!this.mouseFlightController?.isEnabled() || !this.camera || !this.myVehicle || this.isFirstPerson) {
+        if (!this.firstPersonViewPolicy.canUseMouseFlight(this.isFirstPerson) || !this.camera || !this.myVehicle) {
             return;
         }
         if (this.myVehicle.userData?.vehicleData?.active === false) {
@@ -1810,7 +1841,7 @@ export class GameClient {
     syncMouseFlightCursor() {
         const canvas = this.renderer?.domElement || document.getElementById('gameCanvas');
         if (!canvas) return;
-        const enabled = Boolean(this.mouseFlightController?.isEnabled() && !this.isFirstPerson);
+        const enabled = Boolean(this.firstPersonViewPolicy.canUseMouseFlight(this.isFirstPerson));
         const active = Boolean(enabled && this.mouseFlightController?.hasTarget());
         canvas.classList.toggle('mouse-flight-enabled', enabled);
         canvas.classList.toggle('mouse-flight-active', active);

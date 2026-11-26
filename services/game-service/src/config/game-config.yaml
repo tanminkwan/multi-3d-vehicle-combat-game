@@ -462,12 +462,16 @@ camera:
   smoothing: 0.1                     # 카메라 부드러움 (0.1 = 10% 보간)
   minDistance: 10                    # OrbitControls 최소 거리
   maxDistance: 500                   # OrbitControls 최대 거리
+  firstPerson:
+    hideOwnVehicle: true             # 1인칭 시점 전환 시 내 기체 숨김 여부
+    usePointerLock: false            # 1인칭 시점 포인터 락 사용 여부 (마우스 이동 지원 시 false)
   
 client:
   inputSendRate: 60                  # 입력 전송 주기 (Hz)
   messageDisplayDuration: 3000       # 메시지 표시 시간 (ms)
   mouseFlight:                       # 마우스 우클릭 3D 공간 비행 조종 설정
     enabled: true                    # 마우스 클릭 이동 기능 활성화 여부
+    allowInFirstPerson: true         # 1인칭 시점 전환 상태에서도 마우스 이동 허용
     moveMouseButton: 2               # 이동 명령 마우스 버튼 (2: 우클릭, 0: 좌클릭)
     defaultTargetDistance: 120       # 허공 클릭 시 목표 지점 거리 (유닛)
     minTargetDistance: 25            # 최소 목표 거리

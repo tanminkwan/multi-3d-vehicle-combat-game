@@ -9,6 +9,8 @@ export class InputManager {
         this.mouseX = 0;
         this.mouseY = 0;
         this.moveMouseButton = options.moveMouseButton ?? 2; // 기본 우클릭 이동
+        this.allowFirstPersonMouseFlight = options.allowFirstPersonMouseFlight !== false;
+        this.usePointerLockInFirstPerson = options.usePointerLockInFirstPerson === true;
         this.inputs = {
             thrust: 0,
             pitch: 0,
@@ -99,8 +101,8 @@ export class InputManager {
 
             if (e.button === 0 && isOnCanvas) { // 좌클릭: 기존 기관총 발사 유지 (UI 버튼 클릭 제외)
                 this.inputs.fire = true;
-            } else if (e.button === this.moveMouseButton && isOnCanvas && !this.isFirstPerson) {
-                // 우클릭: 클릭한 3D 공간으로 이동
+            } else if (e.button === this.moveMouseButton && isOnCanvas && (!this.isFirstPerson || this.allowFirstPersonMouseFlight)) {
+                // 우클릭: 클릭한 3D 공간으로 이동 (1인칭 시점 포함)
                 e.preventDefault();
                 if (this.onMoveClick) {
                     const rect = canvas.getBoundingClientRect();
@@ -179,10 +181,14 @@ export class InputManager {
             // CameraManager가 없는 경우 기본 처리
             if (this.isFirstPerson) {
                 // 1인칭 시점으로 전환
-                document.body.requestPointerLock();
+                if (this.usePointerLockInFirstPerson && document.body?.requestPointerLock) {
+                    document.body.requestPointerLock();
+                }
             } else {
                 // 3인칭 시점으로 전환
-                document.exitPointerLock();
+                if (document.pointerLockElement && document.exitPointerLock) {
+                    document.exitPointerLock();
+                }
                 this.mouseX = 0;
                 this.mouseY = 0;
             }

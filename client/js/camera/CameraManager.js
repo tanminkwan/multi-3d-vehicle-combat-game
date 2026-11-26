@@ -1,14 +1,16 @@
 import * as THREE from 'three';
+import { FirstPersonViewPolicy } from './FirstPersonViewPolicy.js';
 
 /**
  * 카메라 관리자 클래스
  * 1인칭/3인칭 카메라 제어, 시점 전환, OrbitControls 관리를 담당
  */
 export class CameraManager {
-    constructor(camera, controls, config) {
+    constructor(camera, controls, config, viewPolicy = null) {
         this.camera = camera;
         this.controls = controls;
         this.config = config;
+        this.viewPolicy = viewPolicy || new FirstPersonViewPolicy(config);
         
         // 카메라 상태
         this.isFirstPerson = false;
@@ -56,26 +58,48 @@ export class CameraManager {
         
         if (this.isFirstPerson) {
             // 1인칭 시점으로 전환
-            this.controls.enabled = false;
-            document.body.requestPointerLock();
-            if (this.myVehicle) {
-                this.myVehicle.visible = false; // 1인칭에서는 내 비행체 숨기기
+            if (this.controls) {
+                this.controls.enabled = false;
+            }
+            if (this.viewPolicy.shouldUsePointerLock() && document.body?.requestPointerLock) {
+                document.body.requestPointerLock();
             }
         } else {
             // 3인칭 시점으로 전환
-            this.controls.enabled = true;
-            document.exitPointerLock();
+            if (this.controls) {
+                this.controls.enabled = true;
+            }
+            if (document.pointerLockElement && document.exitPointerLock) {
+                document.exitPointerLock();
+            }
             this.mouseX = 0;
             this.mouseY = 0;
-            if (this.myVehicle) {
-                this.myVehicle.visible = true; // 3인칭에서는 내 비행체 보이기
-            }
         }
+
+        this.syncOwnVehicleVisibility();
         
         // 콜백 호출
         if (this.callbacks.onFirstPersonToggle) {
             this.callbacks.onFirstPersonToggle(this.isFirstPerson);
         }
+    }
+
+    /**
+     * 현재 시점 정책에 맞춰 내 비행체 가시성을 동기화합니다.
+     */
+    syncOwnVehicleVisibility() {
+        if (!this.myVehicle) return;
+        const vd = this.myVehicle.userData?.vehicleData;
+        const serverVisible = vd
+            ? (Object.prototype.hasOwnProperty.call(vd, 'visible') ? vd.visible : vd.active !== false)
+            : true;
+        this.myVehicle.visible = this.viewPolicy.resolveVehicleVisibility({
+            isOwnVehicle: true,
+            isFirstPerson: this.isFirstPerson,
+            serverVisible,
+            isInvulnerable: Boolean(vd?.isInvulnerable),
+            blinkVisible: true
+        });
     }
     
     /**
